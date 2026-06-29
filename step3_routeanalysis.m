@@ -1,8 +1,8 @@
-%% function summarize_crossing_speeds_simple
+%% function summarize_locomotion_speeds
 % Writes one CSV with per-file:
-%   file, cross_mean_speed_px_s, cross_median_speed_px_s
+%   file, locomotion_mean_speed_px_s, locomotion_median_speed_px_s
 %
-% Crossing frames = isCrossing==1 (crawling included); pauses excluded if available.
+% Locomotion frames = all active frames (crawling included); pauses excluded if available.
 % Robust to bad startIdx/stopIdx (will skip cropping if indices exceed vector length).
 
     folder = uigetdir(pwd,'Select folder with trial MAT files');
@@ -11,7 +11,7 @@
     files = dir(fullfile(folder,"**", '*results.mat'));
     if isempty(files), error('No .mat files found in %s',folder); end
 
-    rows = struct('file',{},'cross_mean_speed_px_s',{},'cross_median_speed_px_s',{});
+    rows = struct('file',{},'locomotion_mean_speed_px_s',{},'locomotion_median_speed_px_s',{});
 
     for k = 1:numel(files)
         fpath = fullfile(files(k).folder, files(k).name);
@@ -58,16 +58,16 @@
         % Guard 2: if still empty or all NaN speeds, write NaN but warn
         if nnz(mask)==0 || all(isnan(spd_ps(mask)))
             mMean = NaN; mMed = NaN;
-            warning('No valid crossing frames in %s (after guards). Writing NaN.', files(k).name);
+            warning('No valid locomotion frames in %s (after guards). Writing NaN.', files(k).name);
         else
-            mMean = mean(spd_ps(mask), 'omitnan');   % mean across ALL crossing frames
-            mMed  = median(spd_ps(mask), 'omitnan'); % median across ALL crossing frames
+            mMean = mean(spd_ps(mask), 'omitnan');   % mean across ALL active frames
+            mMed  = median(spd_ps(mask), 'omitnan'); % median across ALL active frames
         end
 
         rows(end+1) = struct( ... %#ok<AGROW>
             'file', files(k).name, ...
-            'cross_mean_speed_px_s',   mMean, ...
-            'cross_median_speed_px_s', mMed);
+            'locomotion_mean_speed_px_s',   mMean, ...
+            'locomotion_median_speed_px_s', mMed);
     end
 
     T = struct2table(rows);
@@ -75,7 +75,7 @@
     if ~exist(fullfile(folder, "stats_and_analysis/balancebeam"), 'dir')
         mkdir(fullfile(dataDir, "stats_and_analysis/balancebeam"));
     end
-    out = fullfile(folder, "stats_and_analysis/balancebeam",'crossing_speed_summary.csv');
+    out = fullfile(folder, "stats_and_analysis/balancebeam",'locomotion_speed_summary.csv');
     writetable(T, out);
     fprintf('Wrote %s with %d rows.\n', out, height(T));
   
