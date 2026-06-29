@@ -16,12 +16,9 @@ PauseTime = [];
 CrawlingTime = [];
 MedianSpeed = [];
 MeanSpeed = [];
-<<<<<<< HEAD
 PixelsPerCm = [];
 MedianSpeed_cm = [];
 MeanSpeed_cm = [];
-=======
->>>>>>> a28bb09 (for units)
 
 % Loop through each file
 for k = 1:length(files)
@@ -72,7 +69,6 @@ T = table(FilePrefix', CrossingTime', PauseTime', CrawlingTime', ...
     'VariableNames', {'FilePrefix', 'CrossingTime_sec', 'PauseTime_sec', 'CrawlingTime_sec', ...
     'MedianSpeed_px_per_frame', 'MeanSpeed_px_per_frame', 'PixelsPerCm', ...
     'MedianSpeed_cm_per_s', 'MeanSpeed_cm_per_s'});
-
 
 % Save to Excel
 writetable(T, fullfile(folder,"stats_and_analysis/balancebeam/summary_behavior_metrics.xlsx"));
