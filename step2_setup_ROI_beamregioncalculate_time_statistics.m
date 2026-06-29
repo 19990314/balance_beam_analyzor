@@ -14,7 +14,7 @@ function batch_track_roi_tracking()
 %   isCrossing, crossing_time_sec, total_time_sec,
 %   refSide, side_tolerance_px
 %
-% Master MAT saves table 'masterSummary' with columns:
+% Master MAT saves table 'crossing_pausing_crawling_timein_seconds+percentage' with columns:
 %   Video | PauseTime_sec | CrawlingTime_sec | CrossingTime_sec | PausePct | CrawlingPct | CrossingPct
 
     %-------------------------------%
@@ -270,11 +270,11 @@ function batch_track_roi_tracking()
     if ~isempty(masterRows)
         masterSummary = cell2table(masterRows, ...
             'VariableNames', {'Video','PauseTime_sec','CrawlingTime_sec','CrossingTime_sec','PausePct','CrawlingPct','CrossingPct'});
-        masterMatPath = fullfile(dataDir, 'tracking_master_summary.mat');
+        masterMatPath = fullfile(dataDir,"stats_and_analysis/balancebeam", 'crossing_pausing_crawling_timein_seconds+percentage.mat');
         save(masterMatPath, 'masterSummary');
         
         % Also write CSV next to the MAT
-masterCsvPath = fullfile(dataDir, 'tracking_master_summary.csv');
+masterCsvPath = fullfile(dataDir,"stats_and_analysis/balancebeam", 'crossing_pausing_crawling_timein_seconds+percentage.csv');
 try
     writetable(masterSummary, masterCsvPath);  % includes headers
     fprintf('\n🧾 Master CSV saved: %s\n', masterCsvPath);
