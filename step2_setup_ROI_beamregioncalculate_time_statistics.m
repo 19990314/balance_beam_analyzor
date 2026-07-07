@@ -104,7 +104,7 @@ function batch_track_roi_tracking()
             if ~exist(fullfile(dataDir, "stats_and_analysis/balancebeam"), 'dir')
                 mkdir(fullfile(dataDir, "stats_and_analysis/balancebeam"));
             end
-            outVideoPath = fullfile(dataDir, "stats_and_analysis",sprintf('%s_tracked.mp4', base));
+            outVideoPath = fullfile(dataDir, "stats_and_analysis/balancebeam",sprintf('%s_tracked.mp4', base));
             outputVideo  = VideoWriter(outVideoPath);
             outputVideo.FrameRate = fps_used;
             open(outputVideo);
