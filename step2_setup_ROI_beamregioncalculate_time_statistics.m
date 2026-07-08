@@ -48,29 +48,33 @@ function batch_track_roi_tracking()
             fpath = fullfile(files(i).folder, fname);
             [~, base0, ~] = fileparts(fname);
             outMatCheck = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base0));
+
+            needsReprocess = true;  % default: process
             if exist(outMatCheck, 'file')
-                fprintf('\n=== Skipping %s (already processed) ===\n', fname);
-                % Load existing results and add to master summary
                 d = load(outMatCheck);
-                if isfield(d,'pause_time_sec') && isfield(d,'crawling_time_sec') && isfield(d,'crossing_time_sec')
+                if isfield(d,'pause_time_sec') && isfield(d,'crawling_time_sec') && isfield(d,'crossing_time_sec') && isfield(d,'isPause') && isfield(d,'dt')
                     N = numel(d.isPause);
-                    if N > 0 && isfield(d,'dt')
-                        p_pct = 100 * d.pause_time_sec    / (N * d.dt);
-                        cr_pct= 100 * d.crawling_time_sec / (N * d.dt);
-                        cx_pct= 100 * d.crossing_time_sec / (N * d.dt);
-                    elseif isfield(d,'pause_pct')
-                        p_pct = d.pause_pct; cr_pct = d.crawling_pct; cx_pct = d.crossing_pct;
+                    total = N * d.dt;
+                    pctSum = 100 * (d.pause_time_sec + d.crawling_time_sec + d.crossing_time_sec) / total;
+                    if abs(pctSum - 100) < 1  % within 1% tolerance
+                        fprintf('\n=== Skipping %s (already processed, pct OK: %.1f%%) ===\n', fname, pctSum);
+                        % Add to master summary
+                        p_pct = 100 * d.pause_time_sec    / total;
+                        cr_pct= 100 * d.crawling_time_sec / total;
+                        cx_pct= 100 * d.crossing_time_sec / total;
+                        masterRows(end+1, :) = { ...
+                            base0, ...
+                            d.pause_time_sec, d.crawling_time_sec, d.crossing_time_sec, ...
+                            p_pct, cr_pct, cx_pct ...
+                        }; %#ok<AGROW>
+                        needsReprocess = false;
                     else
-                        p_pct = NaN; cr_pct = NaN; cx_pct = NaN;
+                        fprintf('\n=== Reprocessing %s (pct sum = %.1f%%, expected ~100%%) ===\n', fname, pctSum);
                     end
-                    masterRows(end+1, :) = { ...
-                        base0, ...
-                        d.pause_time_sec, d.crawling_time_sec, d.crossing_time_sec, ...
-                        p_pct, cr_pct, cx_pct ...
-                    }; %#ok<AGROW>
                 end
-                continue;
             end
+            if ~needsReprocess, continue; end
+
             fprintf('\n=== Processing %s ===\n', fname);
 
             vMeta = VideoReader(fpath);
@@ -265,7 +269,7 @@ function batch_track_roi_tracking()
                 pause_pct = 0; crawling_pct = 0; crossing_pct = 0;
             end
 
-            % 7) Save per-video MAT
+            % 7) Save per-video MAT (overwrites if reprocessing)
             outMat = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base));
             save(outMat, ...
                 'centers', 'roiMask', 'crawlPolylinePts', 'boundingBox', ...
