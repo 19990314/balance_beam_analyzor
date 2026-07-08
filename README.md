@@ -49,10 +49,10 @@ Batch-tracks mouse position within a user-defined ROI across all videos.
 - Videos with an existing `*_tracking_results.mat` are **skipped** and loaded into the master summary automatically
 - For each new video: set start/stop frames, draw the beam ROI polygon, draw the crawl boundary polyline
 - Uses background subtraction (threshold = 50) at 30 fps
-- Classifies each frame into **mutually exclusive** categories (pause takes priority):
+- Classifies each frame (categories can overlap):
   - **Pause** — speed < 0.3 px/frame
-  - **Crawling** — blob boundary crosses the user-drawn polyline, and not pausing
-  - **Crossing** — all remaining active frames
+  - **Crawling** — blob boundary crosses the user-drawn polyline (independent of pause)
+  - **Crossing** — frames that are neither pausing nor crawling
 - Saves a `*_tracking_results.mat` and `*_tracked.mp4` per video
 - Saves master summary MAT + CSV
 
@@ -76,6 +76,9 @@ Aggregates all per-video MAT files into one master CSV with timing, percentages,
 | Column | Description |
 |---|---|
 | `Video` | Filename (no extension) |
+| `ID` | First 4 characters of filename, uppercased (e.g. `SC04`) |
+| `Day` | Day number extracted from `_d<N>_` in filename (integer; NaN if not found) |
+| `Group` | `SNr-DTA` or `Ctrl` based on ID lookup; empty if unknown |
 | `PauseTime_sec` | Time spent pausing (s) |
 | `CrawlingTime_sec` | Time spent crawling (s) |
 | `CrossingTime_sec` | Time spent crossing (s) |
@@ -83,14 +86,36 @@ Aggregates all per-video MAT files into one master CSV with timing, percentages,
 | `CrawlingPct` | % of trial time crawling |
 | `CrossingPct` | % of trial time crossing |
 | `PixelsPerCm` | Calibration value from Step 1 |
-| `MedianSpeed_px_per_frame_pauseIncluded` | Median speed over all frames (px/frame) |
-| `MeanSpeed_px_per_frame_pauseIncluded` | Mean speed over all frames (px/frame) |
-| `MedianSpeed_cm_s_pauseIncluded` | Median speed over all frames (cm/s) |
-| `MeanSpeed_cm_s_pauseIncluded` | Mean speed over all frames (cm/s) |
-| `MedianSpeed_px_s_pauseExcluded` | Median speed excluding pauses (px/s) |
-| `MeanSpeed_px_s_pauseExcluded` | Mean speed excluding pauses (px/s) |
-| `MedianSpeed_cm_s_pauseExcluded` | Median speed excluding pauses (cm/s) |
-| `MeanSpeed_cm_s_pauseExcluded` | Mean speed excluding pauses (cm/s) |
+| `MedianSpeed_px_per_frame_pauseIncluded` | Median speed over all frames in trial window (px/frame) |
+| `MeanSpeed_px_per_frame_pauseIncluded` | Mean speed over all frames in trial window (px/frame) |
+| `MedianSpeed_cm_s_pauseIncluded` | Median speed over all frames in trial window (cm/s) |
+| `MeanSpeed_cm_s_pauseIncluded` | Mean speed over all frames in trial window (cm/s) |
+| `MedianSpeed_px_s_pauseExcluded` | Median speed excluding pause frames (px/s) |
+| `MeanSpeed_px_s_pauseExcluded` | Mean speed excluding pause frames (px/s) |
+| `MedianSpeed_cm_s_pauseExcluded` | Median speed excluding pause frames (cm/s) |
+| `MeanSpeed_cm_s_pauseExcluded` | Mean speed excluding pause frames (cm/s) |
+
+#### Speed calculation formulas
+
+All speed is derived from `speed_px_per_frame`, which is the Euclidean distance (pixels) between consecutive blob centroids. The trial window is `[startIdx, stopIdx]` as set during Step 2.
+
+**Pause-included** (all frames in trial window, NaN frames omitted):
+
+```
+speed_px_per_frame  =  dist(centroid[t], centroid[t-1])          [px/frame]
+median_px_per_frame =  median(speed_px_per_frame)                 [px/frame]
+median_cm_per_s     =  median_px_per_frame × fps ÷ PixelsPerCm   [cm/s]
+```
+
+**Pause-excluded** (frames where `isPause == false`):
+
+```
+active_speeds_px_s  =  speed_px_per_frame(~isPause) × fps        [px/s]
+median_px_per_s     =  median(active_speeds_px_s)                 [px/s]
+median_cm_per_s     =  median_px_per_s ÷ PixelsPerCm             [cm/s]
+```
+
+> Note: `fps = 30`. `PixelsPerCm` is matched from `pixels_per_cm_output.xlsx` by the first 7 characters of the filename. The first frame of every video gets speed = 0 by definition (no prior frame).
 
 ---
 
