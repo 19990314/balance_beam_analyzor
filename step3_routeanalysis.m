@@ -30,7 +30,11 @@ function step3_routeanalysis(folder)
         warning('pixels_per_cm_output.xlsx not found; cm/s columns will be NaN.');
     end
 
-    Video={}; PauseTime_sec=[]; CrawlingTime_sec=[]; CrossingTime_sec=[];
+    snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC20','SC31','SC32','LM45'};
+    ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36'};
+
+    Video={}; ID={}; Day={}; Group={};
+    PauseTime_sec=[]; CrawlingTime_sec=[]; CrossingTime_sec=[];
     PausePct=[]; CrawlingPct=[]; CrossingPct=[]; PixelsPerCm=[];
     MedianSpeed_px_frame_pauseIncluded=[]; MeanSpeed_px_frame_pauseIncluded=[];
     MedianSpeed_cm_s_pauseIncluded=[];     MeanSpeed_cm_s_pauseIncluded=[];
@@ -93,7 +97,19 @@ function step3_routeanalysis(folder)
         end
         medCm_exc=medPxS_exc/ppc; mnCm_exc=mnPxS_exc/ppc;
 
-        Video{end+1}=base; %#ok<AGROW>
+        % Extract ID, Day, Group from filename
+        mouseID = upper(base(1:min(4, numel(base))));
+        tok = regexp(base, '_d(\d+)_', 'tokens', 'once');
+        if ~isempty(tok), mouseDay = ['D' tok{1}]; else, mouseDay = ''; end
+        if any(strcmpi(snrDtaIDs, mouseID))
+            mouseGroup = 'SNr-DTA';
+        elseif any(strcmpi(ctrlIDs, mouseID))
+            mouseGroup = 'Ctrl';
+        else
+            mouseGroup = '';
+        end
+
+        Video{end+1}=base; ID{end+1}=mouseID; Day{end+1}=mouseDay; Group{end+1}=mouseGroup; %#ok<AGROW>
         PauseTime_sec(end+1)=d.pause_time_sec; CrawlingTime_sec(end+1)=d.crawling_time_sec; CrossingTime_sec(end+1)=d.crossing_time_sec;
         PausePct(end+1)=p_pct; CrawlingPct(end+1)=cr_pct; CrossingPct(end+1)=cx_pct;
         PixelsPerCm(end+1)=ppc;
@@ -103,13 +119,14 @@ function step3_routeanalysis(folder)
         MedianSpeed_cm_s_pauseExcluded(end+1)=medCm_exc;       MeanSpeed_cm_s_pauseExcluded(end+1)=mnCm_exc;
     end
 
-    T = table(Video',PauseTime_sec',CrawlingTime_sec',CrossingTime_sec', ...
+    T = table(Video',ID',Day',Group', ...
+              PauseTime_sec',CrawlingTime_sec',CrossingTime_sec', ...
               PausePct',CrawlingPct',CrossingPct',PixelsPerCm', ...
               MedianSpeed_px_frame_pauseIncluded',MeanSpeed_px_frame_pauseIncluded', ...
               MedianSpeed_cm_s_pauseIncluded',    MeanSpeed_cm_s_pauseIncluded', ...
               MedianSpeed_px_s_pauseExcluded',    MeanSpeed_px_s_pauseExcluded', ...
               MedianSpeed_cm_s_pauseExcluded',    MeanSpeed_cm_s_pauseExcluded', ...
-        'VariableNames',{'Video', ...
+        'VariableNames',{'Video','ID','Day','Group', ...
             'PauseTime_sec','CrawlingTime_sec','CrossingTime_sec', ...
             'PausePct','CrawlingPct','CrossingPct','PixelsPerCm', ...
             'MedianSpeed_px_per_frame_pauseIncluded','MeanSpeed_px_per_frame_pauseIncluded', ...
