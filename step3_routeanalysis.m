@@ -33,7 +33,7 @@ function step3_routeanalysis(folder)
     snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC20','SC31','SC32','LM45'};
     ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36'};
 
-    Video={}; ID={}; Day={}; Group={};
+    Video={}; ID={}; Day=[]; Group={};
     PauseTime_sec=[]; CrawlingTime_sec=[]; CrossingTime_sec=[];
     PausePct=[]; CrawlingPct=[]; CrossingPct=[]; PixelsPerCm=[];
     MedianSpeed_px_frame_pauseIncluded=[]; MeanSpeed_px_frame_pauseIncluded=[];
@@ -100,7 +100,7 @@ function step3_routeanalysis(folder)
         % Extract ID, Day, Group from filename
         mouseID = upper(base(1:min(4, numel(base))));
         tok = regexp(base, '_d(\d+)_', 'tokens', 'once');
-        if ~isempty(tok), mouseDay = ['D' tok{1}]; else, mouseDay = ''; end
+        if ~isempty(tok), mouseDay = str2double(tok{1}); else, mouseDay = NaN; end
         if any(strcmpi(snrDtaIDs, mouseID))
             mouseGroup = 'SNr-DTA';
         elseif any(strcmpi(ctrlIDs, mouseID))
@@ -109,7 +109,7 @@ function step3_routeanalysis(folder)
             mouseGroup = '';
         end
 
-        Video{end+1}=base; ID{end+1}=mouseID; Day{end+1}=mouseDay; Group{end+1}=mouseGroup; %#ok<AGROW>
+        Video{end+1}=base; ID{end+1}=mouseID; Day(end+1)=mouseDay; Group{end+1}=mouseGroup; %#ok<AGROW>
         PauseTime_sec(end+1)=d.pause_time_sec; CrawlingTime_sec(end+1)=d.crawling_time_sec; CrossingTime_sec(end+1)=d.crossing_time_sec;
         PausePct(end+1)=p_pct; CrawlingPct(end+1)=cr_pct; CrossingPct(end+1)=cx_pct;
         PixelsPerCm(end+1)=ppc;
