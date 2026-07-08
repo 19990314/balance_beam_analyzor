@@ -46,6 +46,12 @@ function batch_track_roi_tracking()
         try
             fname = files(i).name;
             fpath = fullfile(files(i).folder, fname);
+            [~, base0, ~] = fileparts(fname);
+            outMatCheck = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base0));
+            if exist(outMatCheck, 'file')
+                fprintf('\n=== Skipping %s (already processed) ===\n', fname);
+                continue;
+            end
             fprintf('\n=== Processing %s ===\n', fname);
 
             vMeta = VideoReader(fpath);
