@@ -50,6 +50,25 @@ function batch_track_roi_tracking()
             outMatCheck = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base0));
             if exist(outMatCheck, 'file')
                 fprintf('\n=== Skipping %s (already processed) ===\n', fname);
+                % Load existing results and add to master summary
+                d = load(outMatCheck);
+                if isfield(d,'pause_time_sec') && isfield(d,'crawling_time_sec') && isfield(d,'crossing_time_sec')
+                    N = numel(d.isPause);
+                    if N > 0 && isfield(d,'dt')
+                        p_pct = 100 * d.pause_time_sec    / (N * d.dt);
+                        cr_pct= 100 * d.crawling_time_sec / (N * d.dt);
+                        cx_pct= 100 * d.crossing_time_sec / (N * d.dt);
+                    elseif isfield(d,'pause_pct')
+                        p_pct = d.pause_pct; cr_pct = d.crawling_pct; cx_pct = d.crossing_pct;
+                    else
+                        p_pct = NaN; cr_pct = NaN; cx_pct = NaN;
+                    end
+                    masterRows(end+1, :) = { ...
+                        base0, ...
+                        d.pause_time_sec, d.crawling_time_sec, d.crossing_time_sec, ...
+                        p_pct, cr_pct, cx_pct ...
+                    }; %#ok<AGROW>
+                end
                 continue;
             end
             fprintf('\n=== Processing %s ===\n', fname);
@@ -280,18 +299,18 @@ function batch_track_roi_tracking()
         save(masterMatPath, 'masterSummary');
         
         % Also write CSV next to the MAT
-masterCsvPath = fullfile(dataDir,"stats_and_analysis/balancebeam", 'crossing_pausing_crawling_timein_seconds+percentage.csv');
-try
-    writetable(masterSummary, masterCsvPath);  % includes headers
-    fprintf('\n🧾 Master CSV saved: %s\n', masterCsvPath);
-catch ME
-    warning('Could not write master CSV: %s', ME.message);
-end
+        masterCsvPath = fullfile(dataDir,"stats_and_analysis/balancebeam", 'crossing_pausing_crawling_timein_seconds+percentage.csv');
+        try
+            writetable(masterSummary, masterCsvPath);
+            fprintf('\n🧾 Master CSV saved: %s\n', masterCsvPath);
+        catch ME
+            warning('Could not write master CSV: %s', ME.message);
+        end
 
         fprintf('\n📦 Master summary saved: %s\n', masterMatPath);
         disp(masterSummary);
     else
-        fprintf('\n(No videos processed; master summary not created.)\n');
+        fprintf('\n(No videos processed or found; master summary not created.)\n');
     end
 
     disp('Done.');
