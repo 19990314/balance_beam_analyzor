@@ -4,7 +4,7 @@ function batch_track_roi_tracking()
 %
 % Categories:
 %   • Pause     : speed < 0.3 px/frame
-%   • Crawling  : any blob boundary pixel crosses/touches the user-drawn open polyline
+%   • Crawling  : any blob boundary pixel crosses/touches the user-drawn open polyline (not also pausing)
 %   • Crossing  : ~(Pause | Crawling)
 %
 % Per-video MAT saves:
@@ -248,6 +248,7 @@ function batch_track_roi_tracking()
             isPause    = speed_px_per_frame < pause_thr;
             isPause(~isfinite(speed_px_per_frame)) = false;
             isCrawling = logical(isCrawling(:));
+            isCrawling = isCrawling & ~isPause;  % pause takes priority; categories are mutually exclusive
             isCrossing = ~(isPause | isCrawling);
 
             pause_time_sec    = sum(isPause)    * dt;
