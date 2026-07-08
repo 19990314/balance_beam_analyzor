@@ -4,7 +4,7 @@ function batch_track_roi_tracking()
 %
 % Categories:
 %   • Pause     : speed < 0.3 px/frame
-%   • Crawling  : any blob boundary pixel crosses/touches the user-drawn open polyline (not also pausing)
+%   • Crawling  : any blob boundary pixel crosses/touches the user-drawn open polyline
 %   • Crossing  : ~(Pause | Crawling)
 %
 % Per-video MAT saves:
@@ -49,31 +49,20 @@ function batch_track_roi_tracking()
             [~, base0, ~] = fileparts(fname);
             outMatCheck = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base0));
 
-            needsReprocess = true;  % default: process
+            % Skip if already processed — load existing MAT and add to summary
             if exist(outMatCheck, 'file')
+                fprintf('\n=== Skipping %s (already processed) ===\n', fname);
                 d = load(outMatCheck);
-                if isfield(d,'pause_time_sec') && isfield(d,'crawling_time_sec') && isfield(d,'crossing_time_sec') && isfield(d,'isPause') && isfield(d,'dt')
-                    N = numel(d.isPause);
-                    total = N * d.dt;
-                    pctSum = 100 * (d.pause_time_sec + d.crawling_time_sec + d.crossing_time_sec) / total;
-                    if abs(pctSum - 100) < 1  % within 1% tolerance
-                        fprintf('\n=== Skipping %s (already processed, pct OK: %.1f%%) ===\n', fname, pctSum);
-                        % Add to master summary
-                        p_pct = 100 * d.pause_time_sec    / total;
-                        cr_pct= 100 * d.crawling_time_sec / total;
-                        cx_pct= 100 * d.crossing_time_sec / total;
-                        masterRows(end+1, :) = { ...
-                            base0, ...
-                            d.pause_time_sec, d.crawling_time_sec, d.crossing_time_sec, ...
-                            p_pct, cr_pct, cx_pct ...
-                        }; %#ok<AGROW>
-                        needsReprocess = false;
-                    else
-                        fprintf('\n=== Reprocessing %s (pct sum = %.1f%%, expected ~100%%) ===\n', fname, pctSum);
-                    end
+                if isfield(d,'pause_time_sec') && isfield(d,'crawling_time_sec') && isfield(d,'crossing_time_sec')
+                    N    = numel(d.isPause);
+                    tot  = N * d.dt;
+                    p_pct  = 100 * d.pause_time_sec    / tot;
+                    cr_pct = 100 * d.crawling_time_sec / tot;
+                    cx_pct = 100 * d.crossing_time_sec / tot;
+                    masterRows(end+1, :) = {base0, d.pause_time_sec, d.crawling_time_sec, d.crossing_time_sec, p_pct, cr_pct, cx_pct}; %#ok<AGROW>
                 end
+                continue;
             end
-            if ~needsReprocess, continue; end
 
             fprintf('\n=== Processing %s ===\n', fname);
 
@@ -252,7 +241,6 @@ function batch_track_roi_tracking()
             isPause    = speed_px_per_frame < pause_thr;
             isPause(~isfinite(speed_px_per_frame)) = false;
             isCrawling = logical(isCrawling(:));
-            isCrawling = isCrawling & ~isPause;  % pause takes priority; categories are mutually exclusive
             isCrossing = ~(isPause | isCrawling);
 
             pause_time_sec    = sum(isPause)    * dt;
@@ -269,7 +257,7 @@ function batch_track_roi_tracking()
                 pause_pct = 0; crawling_pct = 0; crossing_pct = 0;
             end
 
-            % 7) Save per-video MAT (overwrites if reprocessing)
+            % 7) Save per-video MAT
             outMat = fullfile(dataDir, "stats_and_analysis/balancebeam", sprintf('%s_tracking_results.mat', base));
             save(outMat, ...
                 'centers', 'roiMask', 'crawlPolylinePts', 'boundingBox', ...
@@ -306,7 +294,7 @@ function batch_track_roi_tracking()
         % Also write CSV next to the MAT
         masterCsvPath = fullfile(dataDir,"stats_and_analysis/balancebeam", 'crossing_pausing_crawling_timein_seconds+percentage.csv');
         try
-            writetable(masterSummary, masterCsvPath);
+            writetable(masterSummary, masterCsvPath);  % includes headers
             fprintf('\n🧾 Master CSV saved: %s\n', masterCsvPath);
         catch ME
             warning('Could not write master CSV: %s', ME.message);
@@ -315,7 +303,7 @@ function batch_track_roi_tracking()
         fprintf('\n📦 Master summary saved: %s\n', masterMatPath);
         disp(masterSummary);
     else
-        fprintf('\n(No videos processed or found; master summary not created.)\n');
+        fprintf('\n(No videos processed; master summary not created.)\n');
     end
 
     disp('Done.');
