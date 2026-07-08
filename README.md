@@ -4,17 +4,27 @@ MATLAB pipeline for analyzing mouse balance beam videos. Tracks movement, classi
 
 ---
 
+## Quick Start
+
+Run the full pipeline with a single script:
+
+```matlab
+run_pipeline
+```
+
+Select your project folder once — Steps 1, 2, and 3 run in sequence. Already-processed videos are skipped automatically.
+
+---
+
 ## Pipeline Overview
 
-Run the steps in order. Each step builds on outputs from the previous one.
+```
+Step 1 → calibrate px/cm              → pixels_per_cm_output.xlsx
+Step 2 → define ROI & track videos    → per-video *_tracking_results.mat
+Step 3 → aggregate master statistics  → beamwalking_time_and_speed_{XX}.csv
+```
 
-```
-Step 1 → calibrate px/cm
-Step 2 → define ROI & track videos   → per-video .mat files
-Step 3 → route analysis              → updates .mat files
-Step 4 → extract metadata            → summary_behavior_metrics.xlsx
-Step 5 → plot baseline vs post
-```
+Steps can also be run individually (each script accepts an optional folder argument or prompts via file browser).
 
 ---
 
@@ -23,60 +33,72 @@ Step 5 → plot baseline vs post
 ### Step 1 — `step1_pixel_per_cm_calculator.m`
 Calibrates the pixel-to-centimeter ratio for each video.
 
-- Opens a file browser — select the folder containing your `*beam_h.mp4` videos
-- For each video, displays a mid-video frame; draw a line spanning **100 cm** on the beam
+- Select the folder containing `*beam_h.mp4` videos
+- For each **new** video (not yet in the output file), displays a mid-video frame — draw a line spanning **100 cm** on the beam
+- Already-calibrated videos are skipped; new rows are appended
 - Saves `pixels_per_cm_output.xlsx` to `<project>/stats_and_analysis/balancebeam/`
 
 **Output columns:** `VideoName`, `PixelsPerCm`
 
 ---
 
-### Step 2 — `step2_setup_ROI.m`
+### Step 2 — `step2_setup_ROI_beamregioncalculate_time_statistics.m`
 Batch-tracks mouse position within a user-defined ROI across all videos.
 
 - Select folder containing `*beam_h.mp4` videos
-- For each video: draw the beam ROI, mark start/stop positions, and draw the crawl polyline
+- Videos with an existing `*_tracking_results.mat` are **skipped** and loaded into the master summary automatically
+- For each new video: set start/stop frames, draw the beam ROI polygon, draw the crawl boundary polyline
 - Uses background subtraction (threshold = 50) at 30 fps
-- Classifies each frame as **Pause** (speed < 0.3 px/frame), **Crawling** (blob touches polyline), or **Crossing**
-- Saves a `*_tracking_results.mat` per video and a master `tracking_master_summary` MAT + CSV
+- Classifies each frame into **mutually exclusive** categories (pause takes priority):
+  - **Pause** — speed < 0.3 px/frame
+  - **Crawling** — blob boundary crosses the user-drawn polyline, and not pausing
+  - **Crossing** — all remaining active frames
+- Saves a `*_tracking_results.mat` and `*_tracked.mp4` per video
+- Saves master summary MAT + CSV
 
-**Per-video MAT variables:** `centers`, `speed_px_per_frame`, `isPause`, `isCrawling`, `isCrossing`, time totals, ROI info
+**Per-video MAT variables:** `centers`, `speed_px_per_frame`, `isPause`, `isCrawling`, `isCrossing`, time totals, percentages, ROI info, crawl polyline
+
+**Master summary files:**
+- `crossing_pausing_crawling_timein_seconds+percentage.mat`
+- `crossing_pausing_crawling_timein_seconds+percentage.csv`
 
 ---
 
 ### Step 3 — `step3_routeanalysis.m`
-Additional route-level analysis on the tracked data. Updates the per-video MAT files.
-
----
-
-### Step 4 — `step4_extract_metadata.m`
-Aggregates all per-video MAT files into a single Excel summary.
+Aggregates all per-video MAT files into one master CSV with timing, percentages, and speeds.
 
 - Select the folder containing `*_tracking_results.mat` files
-- Reads `pixels_per_cm_output.xlsx` to convert speeds from px/frame to cm/s
-- Matches each file to its calibration via the filename prefix (first 7 characters)
+- Reads `pixels_per_cm_output.xlsx` to convert speeds to cm/s (matched by first 7 characters of filename)
+- Output filename includes a 2-character cohort tag extracted from the **first 2 characters of the selected folder name** (e.g. `B4` from `B4_cohort_2_post_injection_behavior`)
 
-**Output:** `summary_behavior_metrics.xlsx` in `<project>/stats_and_analysis/balancebeam/`
+**Output:** `beamwalking_time_and_speed_{XX}.csv` in `<project>/stats_and_analysis/balancebeam/`
 
 | Column | Description |
 |---|---|
-| `FilePrefix` | First 7 characters of the video filename |
-| `CrossingTime_sec` | Time spent crossing (s) |
+| `Video` | Filename (no extension) |
 | `PauseTime_sec` | Time spent pausing (s) |
 | `CrawlingTime_sec` | Time spent crawling (s) |
-| `MedianSpeed_px_per_frame` | Median speed in pixels/frame |
-| `MeanSpeed_px_per_frame` | Mean speed in pixels/frame |
+| `CrossingTime_sec` | Time spent crossing (s) |
+| `PausePct` | % of trial time pausing |
+| `CrawlingPct` | % of trial time crawling |
+| `CrossingPct` | % of trial time crossing |
 | `PixelsPerCm` | Calibration value from Step 1 |
-| `MedianSpeed_cm_per_s` | Median speed in cm/s |
-| `MeanSpeed_cm_per_s` | Mean speed in cm/s |
+| `MedianSpeed_px_per_frame_pauseIncluded` | Median speed over all frames (px/frame) |
+| `MeanSpeed_px_per_frame_pauseIncluded` | Mean speed over all frames (px/frame) |
+| `MedianSpeed_cm_s_pauseIncluded` | Median speed over all frames (cm/s) |
+| `MeanSpeed_cm_s_pauseIncluded` | Mean speed over all frames (cm/s) |
+| `MedianSpeed_px_s_pauseExcluded` | Median speed excluding pauses (px/s) |
+| `MeanSpeed_px_s_pauseExcluded` | Mean speed excluding pauses (px/s) |
+| `MedianSpeed_cm_s_pauseExcluded` | Median speed excluding pauses (cm/s) |
+| `MeanSpeed_cm_s_pauseExcluded` | Mean speed excluding pauses (cm/s) |
 
 ---
 
 ### Step 5 — `step5_bar_plot_caseANDcontrol.m`
 Plots grouped bar charts comparing baseline vs. post-injection sessions per mouse.
 
-- Edit the file paths at the top (`baselineFile`, `postFile`) to point to your two `summary_behavior_metrics.xlsx` files
-- Produces bar plots for crossing time, crawling time, pausing time, and optional slip counts
+- Edit the file paths at the top (`baselineFile`, `postFile`) to point to your two output CSVs
+- Produces bar plots for crossing time, crawling time, pausing time, and speed metrics
 
 ---
 
@@ -89,13 +111,15 @@ Merges summary tables from multiple sessions or cohorts into a single file.
 
 ```
 project_folder/
-├── videos/                          # Raw *beam_h.mp4 videos
-├── stats_and_analysis/
-│   └── balancebeam/
-│       ├── pixels_per_cm_output.xlsx    # Step 1 output
-│       ├── *_tracking_results.mat       # Step 2 output (one per video)
-│       ├── tracking_master_summary.csv  # Step 2 master summary
-│       └── summary_behavior_metrics.xlsx # Step 4 output
+├── *beam_h.mp4                             # Raw videos (can be in subfolders)
+└── stats_and_analysis/
+    └── balancebeam/
+        ├── pixels_per_cm_output.xlsx           # Step 1 output
+        ├── *_tracking_results.mat              # Step 2 output (one per video)
+        ├── *_tracked.mp4                       # Step 2 annotated video
+        ├── crossing_pausing_crawling_timein_seconds+percentage.mat  # Step 2 master
+        ├── crossing_pausing_crawling_timein_seconds+percentage.csv  # Step 2 master
+        └── beamwalking_time_and_speed_{XX}.csv # Step 3 master output
 ```
 
 ---
