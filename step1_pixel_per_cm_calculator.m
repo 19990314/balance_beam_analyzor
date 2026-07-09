@@ -1,61 +1,66 @@
-%% what you need:
-% 1. name all of your videos with suffix '*grid.mp4'
-% 2. know where did you saved your grid video recordings
-% Note: It is okay your videos are distributed in different subfolders;
-% or saved with other task videos.
+function step1_pixel_per_cm_calculator(project_folder)
+%% step1_pixel_per_cm_calculator
+% Calibrate pixels/cm for each *beam_h.mp4 video.
+% Skips videos already present in pixels_per_cm_output.xlsx.
+% Can be called standalone (no args) or from run_pipeline.m.
 
-% Folder containing your video files
-project_folder = uigetdir([], 'Select Folder Containing Videos');
-videoFiles = dir(fullfile(project_folder, '**', '*beam_h.mp4'));
+    if nargin < 1 || isempty(project_folder)
+        project_folder = uigetdir([], 'Select Folder Containing Videos');
+        if isequal(project_folder, 0), error('No folder selected.'); end
+    end
 
-% Output data
-videoNames = {};
-pixelsPerCm = [];
+    videoFiles = dir(fullfile(project_folder, '**', '*beam_h.mp4'));
+    if isempty(videoFiles), error('No *beam_h.mp4 files found.'); end
 
-% Known real-world length
-realLength_cm = 100;
+    outputDir = fullfile(project_folder, 'stats_and_analysis', 'balancebeam');
+    if ~exist(outputDir, 'dir'), mkdir(outputDir); end
+    outXlsx = fullfile(outputDir, 'pixels_per_cm_output.xlsx');
 
-for i = 1:length(videoFiles)
-    % Load video
-    videoPath = fullfile(videoFiles(i).folder, videoFiles(i).name);
-    v = VideoReader(videoPath);
-    
-    % Read one frame (middle of the video)
-    v.CurrentTime = v.Duration / 2;
-    frame = readFrame(v);
+    if exist(outXlsx, 'file')
+        existingT     = readtable(outXlsx);
+        existingNames = existingT.VideoName;
+    else
+        existingT     = table('Size',[0 2], 'VariableTypes',{'cellstr','double'}, ...
+                              'VariableNames',{'VideoName','PixelsPerCm'});
+        existingNames = {};
+    end
 
-    % Show frame and let user select a line
-    figure(1); clf;
-    imshow(frame);
-    title(['Select 2 points that span 100 cm in: ', videoFiles(i).name], 'Interpreter', 'none');
-    h = drawline('Color','r');
-    wait(h);  % Wait until the line is drawn
+    realLength_cm = 100;
+    newNames = {}; newPpc = [];
 
-    % Get pixel distance
-    pixelDistance = norm(h.Position(1,:) - h.Position(2,:));
+    for i = 1:numel(videoFiles)
+        fname = videoFiles(i).name;
+        if any(strcmp(existingNames, fname))
+            fprintf('  Skipping %s (already calibrated)\n', fname);
+            continue;
+        end
 
-    % Compute pixels/cm
-    ppc = pixelDistance / realLength_cm;
+        v = VideoReader(fullfile(videoFiles(i).folder, fname));
+        v.CurrentTime = v.Duration / 2;
+        frame = readFrame(v);
 
-    % Save
-    videoNames{end+1} = videoFiles(i).name;
-    pixelsPerCm(end+1) = ppc;
+        figure(1); clf;
+        imshow(frame);
+        title(['Draw line spanning 100 cm: ', fname], 'Interpreter', 'none');
+        h = drawline('Color','r');
+        wait(h);
 
-    % Annotate on image
-    hold on;
-    midPt = mean(h.Position);
-    text(midPt(1), midPt(2), sprintf('%.2f px/cm', ppc), ...
-        'Color', 'y', 'FontSize', 12, 'FontWeight', 'bold');
-    pause(1);  % Allow time to see annotation before next video
+        ppc = norm(h.Position(1,:) - h.Position(2,:)) / realLength_cm;
+        hold on;
+        midPt = mean(h.Position);
+        text(midPt(1), midPt(2), sprintf('%.2f px/cm', ppc), ...
+            'Color','y','FontSize',12,'FontWeight','bold');
+        pause(1);
+
+        newNames{end+1} = fname; %#ok<AGROW>
+        newPpc(end+1)   = ppc;   %#ok<AGROW>
+    end
+
+    if ~isempty(newNames)
+        newT = table(newNames', newPpc', 'VariableNames', {'VideoName','PixelsPerCm'});
+        writetable([existingT; newT], outXlsx);
+        fprintf('  Saved %d new calibration(s) to %s\n', numel(newNames), outXlsx);
+    else
+        fprintf('  All videos already calibrated.\n');
+    end
 end
-
-% Save to Excel
-T = table(videoNames', pixelsPerCm', ...
-    'VariableNames', {'VideoName', 'PixelsPerCm'});
-outputDir = fullfile(project_folder, 'stats_and_analysis', 'balancebeam');
-if ~exist(outputDir, 'dir')
-    mkdir(outputDir);
-end
-writetable(T, fullfile(outputDir, 'pixels_per_cm_output.xlsx'));
-
-disp('Data saved to ./stats_and_analysis/balancebeam/pixels_per_cm.xlsx');
