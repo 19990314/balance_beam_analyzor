@@ -195,108 +195,137 @@ if nSNR == 0 && nCtrl == 0
     error('No animals found. Check file paths and Day/Group columns in CSV.');
 end
 
-snrColors  = makeShades(dot_snr_color,  max(nSNR, 1));
-ctrlColors = makeShades(dot_ctrl_color, max(nCtrl, 1));
+% ---- Group color lookup (add new groups here as needed) ----
+groupDef = { ...
+    'SNr-DTA',      [0.45 0.75 0.45], [0.25 0.55 0.25]; ...
+    'Ctrl',         [0.55 0.55 0.55], [0.35 0.35 0.35]; ...
+    'SNr-DTA miss', [0.70 0.55 0.80], [0.50 0.35 0.60]; ...
+};  % {name, boxColor, dotColor}
+fallbackBox = [0.70 0.70 0.85];
+fallbackDot = [0.50 0.50 0.65];
+
+% Preferred display order, then any unlisted groups alphabetically
+preferredOrder = {'SNr-DTA', 'SNr-DTA miss', 'Ctrl'};
+presentGroups  = unique(resultGroup, 'stable');
+orderedGroups  = {};
+for g = 1:numel(preferredOrder)
+    if any(presentGroups == preferredOrder{g})
+        orderedGroups{end+1} = preferredOrder{g}; %#ok<AGROW>
+    end
+end
+for g = 1:numel(presentGroups)
+    if ~any(strcmp(orderedGroups, char(presentGroups(g))))
+        orderedGroups{end+1} = char(presentGroups(g)); %#ok<AGROW>
+    end
+end
+nGroups  = numel(orderedGroups);
+boxWidth = 0.35;
 
 %% ==================== FIGURE ====================
 
-figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 3.5 4]);
+figW = max(3.5, 1.5 + nGroups * 1.0);   % widen automatically for more groups
+figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 figW 4]);
 hold on;
 
-boxWidth = 0.35;
-xSNR = 1; xCtrl = 2;
+w1Str = strjoin(string(window1Days), '&');
+w2Str = strjoin(string(window2Days), '&');
 
-% --- Draw SNr-DTA box ---
-if ~isempty(snrVals)
-    nB = sum(~isnan(snrVals));
-    mB = mean(snrVals, 'omitnan');
-    sB = std(snrVals, 'omitnan') / sqrt(nB);
-    rectangle('Position', [xSNR-boxWidth/2, mB-sB, boxWidth, 2*sB], ...
-        'FaceColor', snr_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
-    plot([xSNR-boxWidth/2, xSNR+boxWidth/2], [mB mB], 'k-', 'LineWidth', 2);
-    plot([xSNR, xSNR], [mB-2*sB, mB-sB], 'k-', 'LineWidth', 1.5);
-    plot([xSNR, xSNR], [mB+sB,   mB+2*sB], 'k-', 'LineWidth', 1.5);
-end
+for iG = 1:nGroups
+    gName = orderedGroups{iG};
+    gVals = resultDelta(resultGroup == gName);
+    xPos  = iG;
 
-% --- Draw Control box ---
-if ~isempty(ctrlVals)
-    nB = sum(~isnan(ctrlVals));
-    mB = mean(ctrlVals, 'omitnan');
-    sB = std(ctrlVals, 'omitnan') / sqrt(nB);
-    rectangle('Position', [xCtrl-boxWidth/2, mB-sB, boxWidth, 2*sB], ...
-        'FaceColor', ctrl_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
-    plot([xCtrl-boxWidth/2, xCtrl+boxWidth/2], [mB mB], 'k-', 'LineWidth', 2);
-    plot([xCtrl, xCtrl], [mB-2*sB, mB-sB], 'k-', 'LineWidth', 1.5);
-    plot([xCtrl, xCtrl], [mB+sB,   mB+2*sB], 'k-', 'LineWidth', 1.5);
-end
+    % Resolve colors
+    rowIdx = find(strcmp(groupDef(:,1), gName), 1);
+    if ~isempty(rowIdx)
+        bColor = groupDef{rowIdx, 2};
+        dColor = groupDef{rowIdx, 3};
+    else
+        bColor = fallbackBox;
+        dColor = fallbackDot;
+    end
+    dotShades = makeShades(dColor, max(numel(gVals), 1));
 
-% Individual dots
-for i = 1:nSNR
-    scatter(xSNR  + (rand-0.5)*0.2, snrVals(i),  60, snrColors(i,:),  'filled', ...
-        'MarkerEdgeColor', 'k', 'LineWidth', 0.8);
-end
-for i = 1:nCtrl
-    scatter(xCtrl + (rand-0.5)*0.2, ctrlVals(i), 60, ctrlColors(i,:), 'filled', ...
-        'MarkerEdgeColor', 'k', 'LineWidth', 0.8);
+    % Box
+    if ~isempty(gVals)
+        nB = sum(~isnan(gVals));
+        mB = mean(gVals, 'omitnan');
+        sB = std(gVals, 'omitnan') / sqrt(nB);
+        rectangle('Position', [xPos-boxWidth/2, mB-sB, boxWidth, 2*sB], ...
+            'FaceColor', bColor, 'EdgeColor', 'k', 'LineWidth', 1.5);
+        plot([xPos-boxWidth/2, xPos+boxWidth/2], [mB mB], 'k-', 'LineWidth', 2);
+        plot([xPos, xPos], [mB-2*sB, mB-sB], 'k-', 'LineWidth', 1.5);
+        plot([xPos, xPos], [mB+sB,   mB+2*sB], 'k-', 'LineWidth', 1.5);
+    end
+
+    % Dots
+    for i = 1:numel(gVals)
+        scatter(xPos + (rand-0.5)*0.2, gVals(i), 60, dotShades(i,:), 'filled', ...
+            'MarkerEdgeColor', 'k', 'LineWidth', 0.8);
+    end
+
+    fprintf('%s (%d): %s\n', gName, numel(gVals), ...
+        strjoin(resultID(resultGroup == gName), ', '));
 end
 
 % Zero reference line
 yL = ylim; ylim([min(yL(1), 0), yL(2)]);
-plot([0.5, 2.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+plot([0.5, nGroups+0.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
 
-% Significance bracket
+% Significance bracket (pairwise: first two groups only, if both have ≥2)
 yL2 = ylim; ylim([yL2(1), yL2(2) * 1.15]);
-if nSNR >= 2 && nCtrl >= 2
-    [p, ~] = ranksum(snrVals, ctrlVals);
+if nGroups >= 2
+    g1Vals = resultDelta(resultGroup == orderedGroups{1});
+    g2Vals = resultDelta(resultGroup == orderedGroups{2});
+    if numel(g1Vals) >= 2 && numel(g2Vals) >= 2
+        [p, ~] = ranksum(g1Vals, g2Vals);
 
-    ax   = gca;
-    yl   = ylim(ax);
-    span = yl(2) - yl(1);
-    topY = yl(2) - span * 0.12;
-    barH = span * 0.02;
-    line(ax, [xSNR, xSNR, xCtrl, xCtrl], [topY-barH, topY, topY, topY-barH], ...
-        'Color', 'k', 'LineWidth', 1.2, 'HandleVisibility', 'off');
-    if     p < 0.001; starStr = '***';
-    elseif p < 0.01;  starStr = '**';
-    elseif p < 0.05;  starStr = '*';
-    else;             starStr = 'ns';
+        ax   = gca;
+        yl   = ylim(ax);
+        span = yl(2) - yl(1);
+        topY = yl(2) - span * 0.12;
+        barH = span * 0.02;
+        line(ax, [1, 1, 2, 2], [topY-barH, topY, topY, topY-barH], ...
+            'Color', 'k', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+        if     p < 0.001; starStr = '***';
+        elseif p < 0.01;  starStr = '**';
+        elseif p < 0.05;  starStr = '*';
+        else;             starStr = 'ns';
+        end
+        text(ax, 1.5, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
+            'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+            'FontSize', 10, 'FontWeight', 'bold', 'FontName', 'Helvetica');
+
+        fprintf('\nMann-Whitney U (%s vs %s): p = %.4g\n', ...
+            orderedGroups{1}, orderedGroups{2}, p);
     end
-    text(ax, (xSNR+xCtrl)/2, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
-        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-        'FontSize', 10, 'FontWeight', 'bold', 'FontName', 'Helvetica');
-
-    fprintf('\nMann-Whitney U: p = %.4g\n', p);
-    fprintf('SNr-DTA: %.3f ± %.3f (mean ± SEM)\n', ...
-        mean(snrVals,'omitnan'), std(snrVals,'omitnan')/sqrt(nSNR));
-    fprintf('Control:  %.3f ± %.3f (mean ± SEM)\n', ...
-        mean(ctrlVals,'omitnan'), std(ctrlVals,'omitnan')/sqrt(nCtrl));
-else
-    fprintf('Not enough animals for statistics (need ≥2 per group).\n');
 end
 
-% Axis labels
-xlim([0.5, 2.5]);
-xticks([xSNR, xCtrl]);
-xticklabels({'SNr-DTA', 'Control'});
-
-w1Str = strjoin(string(window1Days), '&');
-w2Str = strjoin(string(window2Days), '&');
-yLabel = sprintf('\\Delta%s\n(Day %s minus Day %s)', ...
-    strrep(metric, '_', ' '), w2Str, w1Str);
-ylabel(yLabel, 'FontSize', 10, 'FontWeight', 'bold');
-
-if title_flag
-    title(strrep(metric, '_', ' '), 'FontSize', 11, 'FontWeight', 'bold');
-end
+% Axes
+xlim([0.5, nGroups+0.5]);
+xticks(1:nGroups);
+xticklabels(orderedGroups);
+ylabel('\DeltaChange', 'FontSize', 10, 'FontWeight', 'bold');
 
 set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off', ...
     'TickDir', 'out', 'FontName', 'Helvetica');
 
+% Subtitle: metric + window info as small text under the figure
+subtitleStr = sprintf('\\Delta%s  |  Day %s minus Day %s', ...
+    strrep(metric, '_', ' '), w2Str, w1Str);
+annotation('textbox', [0.05, 0.001, 0.90, 0.045], 'String', subtitleStr, ...
+    'EdgeColor', 'none', 'HorizontalAlignment', 'center', ...
+    'FontSize', 7, 'FontAngle', 'italic', 'FontName', 'Helvetica');
+
 if legend_flag
-    dB1 = patch(NaN, NaN, snr_color,  'EdgeColor', 'k', 'LineWidth', 1.5);
-    dB2 = patch(NaN, NaN, ctrl_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
-    legend([dB1, dB2], {'SNr-DTA', 'Control'}, 'Location', 'best', ...
-        'FontSize', 10, 'Box', 'on');
+    hPatches = gobjects(nGroups, 1);
+    for iG = 1:nGroups
+        rowIdx = find(strcmp(groupDef(:,1), orderedGroups{iG}), 1);
+        bColor = fallbackBox;
+        if ~isempty(rowIdx); bColor = groupDef{rowIdx, 2}; end
+        hPatches(iG) = patch(NaN, NaN, bColor, 'EdgeColor', 'k', 'LineWidth', 1.5);
+    end
+    legend(hPatches, orderedGroups, 'Location', 'best', 'FontSize', 10, 'Box', 'on');
 end
 
 %% ==================== EXPORT ====================
