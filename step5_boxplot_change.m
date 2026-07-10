@@ -17,10 +17,10 @@ clear; clc;
 %% ==================== COHORT FILE MAP ====================
 % Add one cell per cohort: {baselineCSV, postCSV}
 cohortFiles = {
-    {"\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B2_cohort_2_baseline_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B2.csv", ...
-     "\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B4_cohort_2_post_injection_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B4.csv"}, ...
-    {"\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B3_cohort_3_baseline_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B3.csv", ...
-     "\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B5_cohort_3_post_injection_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B5.csv"}, ...
+    {'\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B2_cohort_2_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B2.csv', ...
+     '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B4_cohort_2_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B4.csv'}, ...
+    {'\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B3_cohort_3_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B3.csv', ...
+     '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B5_cohort_3_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B5.csv'}, ...
 };
 
 %% ==================== SETTINGS ====================
@@ -87,9 +87,6 @@ for iCohort = 1:numel(cohortFiles)
 end
 
 % Align columns across all tables before concatenating.
-% Tables from different cohorts or sessions may have different column sets
-% (e.g. one CSV has PixelsPerCm, another doesn't). Missing columns are
-% filled with NaN so vertcat succeeds.
 allCols = {};
 for k = 1:numel(allTables)
     allCols = union(allCols, allTables{k}.Properties.VariableNames, 'stable');
@@ -105,14 +102,13 @@ for k = 1:numel(allTables)
     end
     % Normalize Note to cell array of char so vertcat succeeds
     if ismember('Note', allTables{k}.Properties.VariableNames)
-        n = allTables{k}.Note;
-        if isstring(n)
-            allTables{k}.Note = cellstr(n);
-        elseif isnumeric(n)
+        nCol = allTables{k}.Note;
+        if isstring(nCol)
+            allTables{k}.Note = cellstr(nCol);
+        elseif isnumeric(nCol)
             allTables{k}.Note = repmat({''}, height(allTables{k}), 1);
         end
     end
-    % Reorder to match allCols
     allTables{k} = allTables{k}(:, allCols);
 end
 
@@ -153,13 +149,11 @@ for iMouse = 1:nMice
     mID   = mouseIDs(iMouse);
     mData = allData(allData.ID == mID, :);
 
-    % Window 1: baseline session
     w1 = mData(mData.Session == "baseline", :);
     if ~isempty(window1Days)
         w1 = w1(ismember(w1.Day, window1Days), :);
     end
 
-    % Window 2: post session
     w2 = mData(mData.Session == "post", :);
     if ~isempty(window2Days)
         w2 = w2(ismember(w2.Day, window2Days), :);
@@ -172,7 +166,6 @@ for iMouse = 1:nMice
 
     avg1 = mean(w1.(metric), 'omitnan');
     avg2 = mean(w2.(metric), 'omitnan');
-
     if isnan(avg1) || isnan(avg2); continue; end
 
     resultID(end+1,1)    = mID;
@@ -207,28 +200,35 @@ ctrlColors = makeShades(dot_ctrl_color, max(nCtrl, 1));
 
 %% ==================== FIGURE ====================
 
-fig    = figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 3.5 4]);
-figNum = get(fig, 'Number');   % plain integer — survives local-function scoping
+figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 3.5 4]);
 hold on;
 
 boxWidth = 0.35;
 xSNR = 1; xCtrl = 2;
 
-% Helper: draw Mean±SEM box with 2×SEM whiskers
-function drawBox(xPos, vals, boxW, fillColor)
-    if isempty(vals); return; end
-    n   = sum(~isnan(vals));
-    mV  = mean(vals, 'omitnan');
-    sV  = std(vals, 'omitnan') / sqrt(n);
-    rectangle('Position', [xPos-boxW/2, mV-sV, boxW, 2*sV], ...
-        'FaceColor', fillColor, 'EdgeColor', 'k', 'LineWidth', 1.5);
-    plot([xPos-boxW/2, xPos+boxW/2], [mV mV], 'k-', 'LineWidth', 2);
-    plot([xPos, xPos], [mV-2*sV, mV-sV], 'k-', 'LineWidth', 1.5);
-    plot([xPos, xPos], [mV+sV,   mV+2*sV], 'k-', 'LineWidth', 1.5);
+% --- Draw SNr-DTA box ---
+if ~isempty(snrVals)
+    nB = sum(~isnan(snrVals));
+    mB = mean(snrVals, 'omitnan');
+    sB = std(snrVals, 'omitnan') / sqrt(nB);
+    rectangle('Position', [xSNR-boxWidth/2, mB-sB, boxWidth, 2*sB], ...
+        'FaceColor', snr_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
+    plot([xSNR-boxWidth/2, xSNR+boxWidth/2], [mB mB], 'k-', 'LineWidth', 2);
+    plot([xSNR, xSNR], [mB-2*sB, mB-sB], 'k-', 'LineWidth', 1.5);
+    plot([xSNR, xSNR], [mB+sB,   mB+2*sB], 'k-', 'LineWidth', 1.5);
 end
 
-drawBox(xSNR,  snrVals,  boxWidth, snr_color);
-drawBox(xCtrl, ctrlVals, boxWidth, ctrl_color);
+% --- Draw Control box ---
+if ~isempty(ctrlVals)
+    nB = sum(~isnan(ctrlVals));
+    mB = mean(ctrlVals, 'omitnan');
+    sB = std(ctrlVals, 'omitnan') / sqrt(nB);
+    rectangle('Position', [xCtrl-boxWidth/2, mB-sB, boxWidth, 2*sB], ...
+        'FaceColor', ctrl_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
+    plot([xCtrl-boxWidth/2, xCtrl+boxWidth/2], [mB mB], 'k-', 'LineWidth', 2);
+    plot([xCtrl, xCtrl], [mB-2*sB, mB-sB], 'k-', 'LineWidth', 1.5);
+    plot([xCtrl, xCtrl], [mB+sB,   mB+2*sB], 'k-', 'LineWidth', 1.5);
+end
 
 % Individual dots
 for i = 1:nSNR
@@ -248,16 +248,28 @@ plot([0.5, 2.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
 yL2 = ylim; ylim([yL2(1), yL2(2) * 1.15]);
 if nSNR >= 2 && nCtrl >= 2
     [p, ~] = ranksum(snrVals, ctrlVals);
-    addSigBracket(gca, xSNR, xCtrl, p);
+
+    ax   = gca;
+    yl   = ylim(ax);
+    span = yl(2) - yl(1);
+    topY = yl(2) - span * 0.12;
+    barH = span * 0.02;
+    line(ax, [xSNR, xSNR, xCtrl, xCtrl], [topY-barH, topY, topY, topY-barH], ...
+        'Color', 'k', 'LineWidth', 1.2, 'HandleVisibility', 'off');
+    if     p < 0.001; starStr = '***';
+    elseif p < 0.01;  starStr = '**';
+    elseif p < 0.05;  starStr = '*';
+    else;             starStr = 'ns';
+    end
+    text(ax, (xSNR+xCtrl)/2, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
+        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+        'FontSize', 10, 'FontWeight', 'bold', 'FontName', 'Helvetica');
+
     fprintf('\nMann-Whitney U: p = %.4g\n', p);
-    if nSNR > 0
-        fprintf('SNr-DTA: %.3f ± %.3f (mean ± SEM)\n', ...
-            mean(snrVals,'omitnan'), std(snrVals,'omitnan')/sqrt(nSNR));
-    end
-    if nCtrl > 0
-        fprintf('Control:  %.3f ± %.3f (mean ± SEM)\n', ...
-            mean(ctrlVals,'omitnan'), std(ctrlVals,'omitnan')/sqrt(nCtrl));
-    end
+    fprintf('SNr-DTA: %.3f ± %.3f (mean ± SEM)\n', ...
+        mean(snrVals,'omitnan'), std(snrVals,'omitnan')/sqrt(nSNR));
+    fprintf('Control:  %.3f ± %.3f (mean ± SEM)\n', ...
+        mean(ctrlVals,'omitnan'), std(ctrlVals,'omitnan')/sqrt(nCtrl));
 else
     fprintf('Not enough animals for statistics (need ≥2 per group).\n');
 end
@@ -280,7 +292,6 @@ end
 set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off', ...
     'TickDir', 'out', 'FontName', 'Helvetica');
 
-% Legend
 if legend_flag
     dB1 = patch(NaN, NaN, snr_color,  'EdgeColor', 'k', 'LineWidth', 1.5);
     dB2 = patch(NaN, NaN, ctrl_color, 'EdgeColor', 'k', 'LineWidth', 1.5);
@@ -294,37 +305,17 @@ metricShort = strrep(metric, '_', '-');
 baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
     version, metricShort, w1Str, w2Str));
 
-figure(figNum);
 set(gcf, 'Renderer', 'painters');
 set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
 
-print([baseName '.pdf'], '-dpdf', '-painters');
+print(gcf, [baseName '.pdf'], '-dpdf', '-painters');
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    print([baseName '.png'], '-dpng', '-r300');
+    print(gcf, [baseName '.png'], '-dpng', '-r300');
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
-    print([baseName '.eps'], '-depsc', '-painters');
+    print(gcf, [baseName '.eps'], '-depsc', '-painters');
     fprintf('Saved (EPS/AI): %s.eps\n', baseName);
-end
-
-%% ==================== HELPER ====================
-
-function addSigBracket(ax, x1, x2, p)
-    yl   = ylim(ax);
-    span = yl(2) - yl(1);
-    topY = yl(2) - span * 0.12;
-    barH = span * 0.02;
-    line(ax, [x1, x1, x2, x2], [topY-barH, topY, topY, topY-barH], ...
-        'Color', 'k', 'LineWidth', 1.2, 'HandleVisibility', 'off');
-    if     p < 0.001; starStr = '***';
-    elseif p < 0.01;  starStr = '**';
-    elseif p < 0.05;  starStr = '*';
-    else;             starStr = 'ns';
-    end
-    text(ax, (x1+x2)/2, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
-        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-        'FontSize', 10, 'FontWeight', 'bold', 'FontName', 'Helvetica');
 end
