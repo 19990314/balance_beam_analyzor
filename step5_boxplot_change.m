@@ -234,8 +234,8 @@ for g = 1:numel(presentGroups)
     end
 end
 nGroups   = numel(orderedGroups);
-boxWidth  = 0.50;   % wider boxes (ref: 0.5)
-groupGap  = 0.80;   % center-to-center spacing (ref: 0.8)
+boxWidth  = 0.52;   % box width
+groupGap  = 0.65;   % center-to-center spacing
 
 %% ==================== FIGURE ====================
 
