@@ -93,10 +93,12 @@ allData = vertcat(allTables{:});
 allData.ID    = string(allData.ID);
 allData.Group = string(allData.Group);
 
-% Null out metrics for Note-flagged rows (keep row, exclude value)
+% Identify numeric metric columns (exclude bookkeeping columns)
+excludeAlways = {'ID','Group','Day','Session','Note'};
 metricCols = allData.Properties.VariableNames;
-metricCols = metricCols(~ismember(metricCols, {'ID','Group','Day','Session','Note'}));
-numericMetricCols = metricCols(varfun(@isnumeric, allData(:, metricCols), 'OutputFormat', 'uniform'));
+metricCols = metricCols(~ismember(metricCols, excludeAlways));
+isNum = varfun(@isnumeric, allData(:, metricCols), 'OutputFormat', 'uniform');
+numericMetricCols = unique(metricCols(isNum), 'stable');   % unique guards against repeated cols
 
 if ismember('Note', allData.Properties.VariableNames)
     hasNote = strtrim(allData.Note) ~= "";
@@ -152,10 +154,12 @@ for iMouse = 1:numel(mouseIDs)
         dayRow    = postRows(postRows.Day == actualDay, :);
         if isempty(dayRow); continue; end
 
-        row.ID        = mID;
-        row.Group     = grp;
-        row.DayIndex  = dIdx;
-        row.ActualDay = actualDay;
+        % Fresh struct each iteration — prevents stale fields from prior rows
+        row = struct();
+        row.ID                  = mID;
+        row.Group               = grp;
+        row.Day                 = dIdx;
+        row.ActualExperimentDay = actualDay;
 
         for c = 1:numel(numericMetricCols)
             col = numericMetricCols{c};
@@ -168,7 +172,6 @@ for iMouse = 1:numel(mouseIDs)
 
             row.(['baseline_' col]) = baseVal;
             row.(['post_'     col]) = postVal;
-            row.(['delta_'    col]) = postVal - baseVal;
         end
 
         outRows{end+1} = row; %#ok<AGROW>
