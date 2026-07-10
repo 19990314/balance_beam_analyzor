@@ -97,13 +97,36 @@ end
 for k = 1:numel(allTables)
     missingCols = setdiff(allCols, allTables{k}.Properties.VariableNames);
     for c = 1:numel(missingCols)
-        allTables{k}.(missingCols{c}) = NaN(height(allTables{k}), 1);
+        if strcmp(missingCols{c}, 'Note')
+            allTables{k}.Note = repmat({''}, height(allTables{k}), 1);
+        else
+            allTables{k}.(missingCols{c}) = NaN(height(allTables{k}), 1);
+        end
+    end
+    % Normalize Note to cell array of char so vertcat succeeds
+    if ismember('Note', allTables{k}.Properties.VariableNames)
+        n = allTables{k}.Note;
+        if isstring(n)
+            allTables{k}.Note = cellstr(n);
+        elseif isnumeric(n)
+            allTables{k}.Note = repmat({''}, height(allTables{k}), 1);
+        end
     end
     % Reorder to match allCols
     allTables{k} = allTables{k}(:, allCols);
 end
 
 allData       = vertcat(allTables{:});
+
+% Skip rows flagged in the Note column
+if ismember('Note', allData.Properties.VariableNames)
+    hasNote = ~cellfun(@(x) isempty(strtrim(char(x))), allData.Note);
+    nFlagged = sum(hasNote);
+    if nFlagged > 0
+        fprintf('Skipping %d flagged rows (Note column non-empty).\n', nFlagged);
+        allData(hasNote, :) = [];
+    end
+end
 allData.ID    = string(allData.ID);
 allData.Group = string(allData.Group);
 
