@@ -30,8 +30,8 @@ function step3_routeanalysis(folder)
         warning('pixels_per_cm_output.xlsx not found; cm/s columns will be NaN.');
     end
 
-    snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC20','SC31','SC32','LM45'};
-    ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36'};
+    snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC30','SC31','SC32','SC46', 'SC47', 'SC48', 'SC49','LM45'};
+    ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36', 'SC51', 'SC52', 'SC53'};
 
     Video={}; ID={}; Day=[]; Group={};
     PauseTime_sec=[]; CrawlingTime_sec=[]; CrossingTime_sec=[];

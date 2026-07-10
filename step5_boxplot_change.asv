@@ -26,7 +26,7 @@ cohortFiles = {
     {'\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B8_cohort_5_baseline_behavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B8.csv', ...
      '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B9_cohort5_post_injection_behavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B9.csv'}, ...
 };
-default_output_figure = "\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\Figures-P1-SNr\G17_change_in_beam_time_and_speed";
+default_output
 
 %% ==================== SETTINGS ====================
 
@@ -50,7 +50,7 @@ window2Days = [4, 5];
 miceToExclude = [];   % e.g. ["SC01", "LM45", "SC04"]
 
 % Where to save figures (user selects via dialog)
-outputDir = uigetdir(default_output_figure, 'Select output folder for figures');
+outputDir = uigetdir(fileparts(cohortFiles{1}{1}), 'Select output folder for figures');
 if isequal(outputDir, 0)
     error('No output folder selected. Exiting.');
 end
@@ -320,14 +320,14 @@ end
 xlim([0.5, nGroups+0.5]);
 xticks(1:nGroups);
 xticklabels(orderedGroups);
-ylabel('\Delta Crossing Time', 'FontSize', 10, 'FontWeight', 'bold');
+ylabel('\DeltaChange', 'FontSize', 10, 'FontWeight', 'bold');
 
 set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off', ...
     'TickDir', 'out', 'FontName', 'Helvetica');
 
 % Subtitle: metric + window info as small text under the figure
-subtitleStr = sprintf('\\Delta Crossing Time (s) |  Day %s - Day %s', ...
-    w2Str, w1Str);
+subtitleStr = sprintf('\\Delta%s  |  Day %s minus Day %s', ...
+    strrep(metric, '_', ' '), w2Str, w1Str);
 annotation('textbox', [0.05, 0.001, 0.90, 0.045], 'String', subtitleStr, ...
     'EdgeColor', 'none', 'HorizontalAlignment', 'center', ...
     'FontSize', 7, 'FontAngle', 'italic', 'FontName', 'Helvetica');
@@ -346,7 +346,7 @@ end
 %% ==================== EXPORT ====================
 
 metricShort = strrep(metric, '_', '-');
-baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-minus-Day%s', ...
+baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
     version, metricShort, w1Str, w2Str));
 
 set(gcf, 'Renderer', 'painters');
