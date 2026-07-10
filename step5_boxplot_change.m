@@ -107,13 +107,19 @@ for k = 1:numel(allTables)
             allTables{k}.(missingCols{c}) = NaN(height(allTables{k}), 1);
         end
     end
-    % Normalize Note to cell array of char so vertcat succeeds
-    if ismember('Note', allTables{k}.Properties.VariableNames)
-        nCol = allTables{k}.Note;
-        if isstring(nCol)
-            allTables{k}.Note = cellstr(nCol);
-        elseif isnumeric(nCol)
-            allTables{k}.Note = repmat({''}, height(allTables{k}), 1);
+    % Normalize text columns to string so vertcat succeeds regardless of
+    % whether readtable produced cell-of-char or string array.
+    textCols = {'Note', 'Group', 'ID'};
+    for tc = 1:numel(textCols)
+        col = textCols{tc};
+        if ismember(col, allTables{k}.Properties.VariableNames)
+            v = allTables{k}.(col);
+            if iscell(v)
+                allTables{k}.(col) = string(v);
+            elseif isnumeric(v)
+                allTables{k}.(col) = repmat("", height(allTables{k}), 1);
+            end
+            % already string — leave as-is
         end
     end
     allTables{k} = allTables{k}(:, allCols);
@@ -123,7 +129,7 @@ allData       = vertcat(allTables{:});
 
 % Skip rows flagged in the Note column
 if ismember('Note', allData.Properties.VariableNames)
-    hasNote = ~cellfun(@(x) isempty(strtrim(char(x))), allData.Note);
+    hasNote = strtrim(allData.Note) ~= "";
     nFlagged = sum(hasNote);
     if nFlagged > 0
         fprintf('Skipping %d flagged rows (Note column non-empty).\n', nFlagged);
