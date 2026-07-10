@@ -296,18 +296,16 @@ baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
 
 figure(figNum);
 set(gcf, 'Renderer', 'painters');
+set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
+
 print([baseName '.pdf'], '-dpdf', '-painters');
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    figure(figNum);
     print([baseName '.png'], '-dpng', '-r300');
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
-    figure(figNum);
-    set(gcf, 'Renderer', 'painters');
-    set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
     print([baseName '.eps'], '-depsc', '-painters');
     fprintf('Saved (EPS/AI): %s.eps\n', baseName);
 end
