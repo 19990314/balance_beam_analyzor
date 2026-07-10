@@ -289,9 +289,8 @@ xPositions = 1 + (0:nGroups-1) * groupGap;
 xLeft  = xPositions(1);
 xRight = xPositions(end);
 
-% Zero reference line
+% Ensure y-axis includes 0
 yL = ylim; ylim([min(yL(1), 0), yL(2)]);
-plot([xLeft - 0.5, xRight + 0.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
 
 % Significance bracket (pairwise: first two groups only, if both have ≥2)
 yL2 = ylim; ylim([yL2(1), yL2(2) * 1.15]);
@@ -332,6 +331,15 @@ ylabel('\Delta Crossing Time', 'FontSize', 13, 'FontWeight', 'bold');
 
 set(gca, 'FontSize', 13, 'LineWidth', 1.2, 'Box', 'off', ...
     'TickDir', 'out', 'FontName', 'Helvetica');
+
+% Halve left and right margins
+ax = gca;
+pos = ax.Position;                         % [left bottom width height]
+leftMargin  = pos(1);
+rightMargin = 1 - pos(1) - pos(3);
+pos(1) = leftMargin  / 2;
+pos(3) = 1 - pos(1) - rightMargin / 2;
+ax.Position = pos;
 
 % Subtitle: metric + window info as small text under the figure
 subtitleStr = sprintf('\\Delta Crossing Time (s) |  Day %s - Day %s', ...
