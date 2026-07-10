@@ -35,7 +35,7 @@ miceToExclude = [];   % e.g. ["SC01", "LM45"]
 outputFileName = 'beamwalking_stats_table.csv';
 
 % Where to save (user selects via dialog)
-default_output = '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr';
+default_output = '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\Figures-P1-SNr\Data\Balance Beam';
 outputDir = uigetdir(default_output, 'Select output folder for stats CSV');
 if isequal(outputDir, 0)
     error('No output folder selected. Exiting.');
@@ -64,6 +64,7 @@ allCols = {};
 for k = 1:numel(allTables)
     allCols = union(allCols, allTables{k}.Properties.VariableNames, 'stable');
 end
+allCols = unique(allCols, 'stable');   % guarantee no duplicates before reorder
 for k = 1:numel(allTables)
     missingCols = setdiff(allCols, allTables{k}.Properties.VariableNames);
     for c = 1:numel(missingCols)
@@ -93,12 +94,16 @@ allData = vertcat(allTables{:});
 allData.ID    = string(allData.ID);
 allData.Group = string(allData.Group);
 
-% Identify numeric metric columns (exclude bookkeeping columns)
-excludeAlways = {'ID','Group','Day','Session','Note'};
+% Identify numeric metric columns — exclude all bookkeeping/index columns
+excludeAlways = {'ID','Group','Day','Days','Session','Note', ...
+                 'Slips','ValueToPlot','baseline_total_time', ...
+                 'postinjection_total_time'};
 metricCols = allData.Properties.VariableNames;
 metricCols = metricCols(~ismember(metricCols, excludeAlways));
 isNum = varfun(@isnumeric, allData(:, metricCols), 'OutputFormat', 'uniform');
-numericMetricCols = unique(metricCols(isNum), 'stable');   % unique guards against repeated cols
+numericMetricCols = unique(metricCols(isNum), 'stable');   % unique as final guard
+fprintf('Metric columns found (%d):\n', numel(numericMetricCols));
+fprintf('  %s\n', numericMetricCols{:});
 
 if ismember('Note', allData.Properties.VariableNames)
     hasNote = strtrim(allData.Note) ~= "";
