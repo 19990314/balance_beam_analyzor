@@ -293,18 +293,21 @@ metricShort = strrep(metric, '_', '-');
 baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
     version, metricShort, w1Str, w2Str));
 
+figure(fig);   % ensure fig is current before printing
 set(fig, 'Renderer', 'painters');
-print(fig, [baseName '.pdf'], '-dpdf', '-painters');
+print(gcf, [baseName '.pdf'], '-dpdf', '-painters');
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    print(fig, [baseName '.png'], '-dpng', '-r300');
+    figure(fig);
+    print(gcf, [baseName '.png'], '-dpng', '-r300');
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
+    figure(fig);
     set(fig, 'Renderer', 'painters');
     set(findall(fig, '-property', 'FontName'), 'FontName', 'Helvetica');
-    print(fig, [baseName '.eps'], '-depsc', '-painters');
+    print(gcf, [baseName '.eps'], '-depsc', '-painters');
     fprintf('Saved (EPS/AI): %s.eps\n', baseName);
 end
 
