@@ -17,10 +17,10 @@ clear; clc;
 %% ==================== COHORT FILE MAP ====================
 % Add one cell per cohort: {baselineCSV, postCSV}
 cohortFiles = {
-    {"\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B2_cohort_2_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B2.csv", ...
-     "\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B4_cohort_2_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B4.csv"}, ...
-    {"\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B3_cohort_3_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B3.csv", ...
-     "\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B5_cohort_3_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B5.csv"}, ...
+    {'/path/to/B4/beamwalking_time_and_speed_B4_baseline.csv', ...
+     '/path/to/B4/beamwalking_time_and_speed_B4_post.csv'}, ...
+    {'/path/to/B5/beamwalking_time_and_speed_B5_baseline.csv', ...
+     '/path/to/B5/beamwalking_time_and_speed_B5_post.csv'}, ...
 };
 
 %% ==================== SETTINGS ====================
@@ -37,11 +37,12 @@ metric = 'MedianSpeed_cm_s_pauseExcluded';
 %   window2: days in the POST CSV to average
 % Change = mean(window2) - mean(window1)
 % Use [] to include all days in that session
-window1Days = [2,3];
-window2Days = [4,5];
+window1Days = [1, 2];
+window2Days = [3, 4];
 
-% Mice to exclude (leave empty [] to keep all)
-miceToExclude = [];   % e.g. ["SC01", "LM45"]
+% Mice to exclude globally (leave empty [] to keep all)
+% These IDs are removed from ALL cohorts before any computation.
+miceToExclude = [];   % e.g. ["SC01", "LM45", "SC04"]
 
 % Where to save figures (defaults to folder of first baseline CSV)
 outputDir = fileparts(cohortFiles{1}{1});
@@ -69,30 +70,51 @@ makeShades = @(base, n) ...
 
 %% ==================== LOAD & POOL ALL COHORTS ====================
 
-allData = table();
+allTables = {};
 
 for iCohort = 1:numel(cohortFiles)
     basePath = cohortFiles{iCohort}{1};
     postPath = cohortFiles{iCohort}{2};
 
-    tBase          = readtable(basePath);
-    tBase.Session  = repmat("baseline", height(tBase), 1);
+    tBase         = readtable(basePath);
+    tBase.Session = repmat("baseline", height(tBase), 1);
 
-    tPost          = readtable(postPath);
-    tPost.Session  = repmat("post", height(tPost), 1);
+    tPost         = readtable(postPath);
+    tPost.Session = repmat("post", height(tPost), 1);
 
-    allData = [allData; tBase; tPost]; %#ok<AGROW>
+    allTables{end+1} = tBase; %#ok<AGROW>
+    allTables{end+1} = tPost; %#ok<AGROW>
 end
 
+% Align columns across all tables before concatenating.
+% Tables from different cohorts or sessions may have different column sets
+% (e.g. one CSV has PixelsPerCm, another doesn't). Missing columns are
+% filled with NaN so vertcat succeeds.
+allCols = {};
+for k = 1:numel(allTables)
+    allCols = union(allCols, allTables{k}.Properties.VariableNames, 'stable');
+end
+for k = 1:numel(allTables)
+    missingCols = setdiff(allCols, allTables{k}.Properties.VariableNames);
+    for c = 1:numel(missingCols)
+        allTables{k}.(missingCols{c}) = NaN(height(allTables{k}), 1);
+    end
+    % Reorder to match allCols
+    allTables{k} = allTables{k}(:, allCols);
+end
+
+allData       = vertcat(allTables{:});
 allData.ID    = string(allData.ID);
 allData.Group = string(allData.Group);
 
-% Exclude specified mice
+% Exclude specified mice (global list)
 if ~isempty(miceToExclude)
+    before = height(allData);
     for i = 1:numel(miceToExclude)
         allData(allData.ID == string(miceToExclude(i)), :) = [];
     end
-    fprintf('Excluded: %s\n', strjoin(string(miceToExclude), ', '));
+    fprintf('Excluded %d rows for: %s\n', before - height(allData), ...
+        strjoin(string(miceToExclude), ', '));
 end
 
 %% ==================== COMPUTE CHANGE PER ANIMAL ====================
