@@ -127,13 +127,14 @@ end
 
 allData       = vertcat(allTables{:});
 
-% Skip rows flagged in the Note column
-if ismember('Note', allData.Properties.VariableNames)
+% Null out the metric value for flagged rows so they are excluded from
+% averaging via omitnan, but the mouse is kept if other valid rows exist.
+if ismember('Note', allData.Properties.VariableNames) && ismember(metric, allData.Properties.VariableNames)
     hasNote = strtrim(allData.Note) ~= "";
     nFlagged = sum(hasNote);
     if nFlagged > 0
-        fprintf('Skipping %d flagged rows (Note column non-empty).\n', nFlagged);
-        allData(hasNote, :) = [];
+        fprintf('Nulling metric for %d flagged rows (Note column non-empty).\n', nFlagged);
+        allData.(metric)(hasNote) = NaN;
     end
 end
 allData.ID    = string(allData.ID);
