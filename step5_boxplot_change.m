@@ -233,13 +233,14 @@ for g = 1:numel(presentGroups)
         orderedGroups{end+1} = char(presentGroups(g)); %#ok<AGROW>
     end
 end
-nGroups  = numel(orderedGroups);
-boxWidth = 0.35;
+nGroups   = numel(orderedGroups);
+boxWidth  = 0.50;   % wider boxes (ref: 0.5)
+groupGap  = 0.80;   % center-to-center spacing (ref: 0.8)
 
 %% ==================== FIGURE ====================
 
-figW = max(3.5, 1.5 + nGroups * 1.0);   % widen automatically for more groups
-figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 figW 4]);
+figW = max(3.0, 1.2 + nGroups * 0.85);   % widen automatically for more groups
+figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 figW 4.5]);
 hold on;
 
 w1Str = strjoin(string(window1Days), '&');
@@ -248,7 +249,7 @@ w2Str = strjoin(string(window2Days), '&');
 for iG = 1:nGroups
     gName = orderedGroups{iG};
     gVals = resultDelta(resultGroup == gName);
-    xPos  = iG;
+    xPos  = 1 + (iG-1) * groupGap;
 
     % Resolve colors
     rowIdx = find(strcmp(groupDef(:,1), gName), 1);
@@ -275,7 +276,7 @@ for iG = 1:nGroups
 
     % Dots
     for i = 1:numel(gVals)
-        scatter(xPos + (rand-0.5)*0.2, gVals(i), 60, dotShades(i,:), 'filled', ...
+        scatter(xPos + (rand-0.5)*0.12, gVals(i), 60, dotShades(i,:), 'filled', ...
             'MarkerEdgeColor', 'k', 'LineWidth', 0.8);
     end
 
@@ -283,9 +284,14 @@ for iG = 1:nGroups
         strjoin(resultID(resultGroup == gName), ', '));
 end
 
+% X positions for all groups
+xPositions = 1 + (0:nGroups-1) * groupGap;
+xLeft  = xPositions(1);
+xRight = xPositions(end);
+
 % Zero reference line
 yL = ylim; ylim([min(yL(1), 0), yL(2)]);
-plot([0.5, nGroups+0.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
+plot([xLeft - 0.5, xRight + 0.5], [0, 0], 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
 
 % Significance bracket (pairwise: first two groups only, if both have ≥2)
 yL2 = ylim; ylim([yL2(1), yL2(2) * 1.15]);
@@ -300,16 +306,18 @@ if nGroups >= 2
         span = yl(2) - yl(1);
         topY = yl(2) - span * 0.12;
         barH = span * 0.02;
-        line(ax, [1, 1, 2, 2], [topY-barH, topY, topY, topY-barH], ...
+        bracketMid = (xPositions(1) + xPositions(2)) / 2;
+        line(ax, [xPositions(1), xPositions(1), xPositions(2), xPositions(2)], ...
+            [topY-barH, topY, topY, topY-barH], ...
             'Color', 'k', 'LineWidth', 1.2, 'HandleVisibility', 'off');
         if     p < 0.001; starStr = '***';
         elseif p < 0.01;  starStr = '**';
         elseif p < 0.05;  starStr = '*';
         else;             starStr = 'ns';
         end
-        text(ax, 1.5, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
+        text(ax, bracketMid, topY + span*0.02, sprintf('%s\np = %.3g', starStr, p), ...
             'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-            'FontSize', 10, 'FontWeight', 'bold', 'FontName', 'Helvetica');
+            'FontSize', 12, 'FontWeight', 'bold', 'FontName', 'Helvetica');
 
         fprintf('\nMann-Whitney U (%s vs %s): p = %.4g\n', ...
             orderedGroups{1}, orderedGroups{2}, p);
@@ -317,12 +325,12 @@ if nGroups >= 2
 end
 
 % Axes
-xlim([0.5, nGroups+0.5]);
-xticks(1:nGroups);
+xlim([xLeft - 0.55, xRight + 0.55]);
+xticks(xPositions);
 xticklabels(orderedGroups);
-ylabel('\Delta Crossing Time', 'FontSize', 10, 'FontWeight', 'bold');
+ylabel('\Delta Crossing Time', 'FontSize', 13, 'FontWeight', 'bold');
 
-set(gca, 'FontSize', 12, 'LineWidth', 1.2, 'Box', 'off', ...
+set(gca, 'FontSize', 13, 'LineWidth', 1.2, 'Box', 'off', ...
     'TickDir', 'out', 'FontName', 'Helvetica');
 
 % Subtitle: metric + window info as small text under the figure
