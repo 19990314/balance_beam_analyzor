@@ -44,8 +44,11 @@ window2Days = [3, 4];
 % These IDs are removed from ALL cohorts before any computation.
 miceToExclude = [];   % e.g. ["SC01", "LM45", "SC04"]
 
-% Where to save figures (defaults to folder of first baseline CSV)
-outputDir = fileparts(cohortFiles{1}{1});
+% Where to save figures (user selects via dialog)
+outputDir = uigetdir(fileparts(cohortFiles{1}{1}), 'Select output folder for figures');
+if isequal(outputDir, 0)
+    error('No output folder selected. Exiting.');
+end
 
 % Output file prefix
 version = 'v1';
