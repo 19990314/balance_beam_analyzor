@@ -207,7 +207,8 @@ ctrlColors = makeShades(dot_ctrl_color, max(nCtrl, 1));
 
 %% ==================== FIGURE ====================
 
-fig = figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 3.5 4]);
+fig    = figure('Color', 'w', 'Units', 'inches', 'Position', [1 1 3.5 4]);
+figNum = get(fig, 'Number');   % plain integer — survives local-function scoping
 hold on;
 
 boxWidth = 0.35;
@@ -293,20 +294,20 @@ metricShort = strrep(metric, '_', '-');
 baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
     version, metricShort, w1Str, w2Str));
 
-figure(fig);   % ensure fig is current before printing
-set(fig, 'Renderer', 'painters');
+figure(figNum);
+set(gcf, 'Renderer', 'painters');
 print(gcf, [baseName '.pdf'], '-dpdf', '-painters');
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    figure(fig);
+    figure(figNum);
     print(gcf, [baseName '.png'], '-dpng', '-r300');
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
-    figure(fig);
-    set(fig, 'Renderer', 'painters');
-    set(findall(fig, '-property', 'FontName'), 'FontName', 'Helvetica');
+    figure(figNum);
+    set(gcf, 'Renderer', 'painters');
+    set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
     print(gcf, [baseName '.eps'], '-depsc', '-painters');
     fprintf('Saved (EPS/AI): %s.eps\n', baseName);
 end
