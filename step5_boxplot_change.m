@@ -368,11 +368,12 @@ baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-minus-Day%s', ...
 set(gcf, 'Renderer', 'painters');
 set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
 
-print(gcf, [baseName '.pdf'], '-dpdf', '-painters');
+% exportgraphics captures the figure exactly as seen in MATLAB (no margin re-layout)
+exportgraphics(gcf, [baseName '.pdf']);
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    print(gcf, [baseName '.png'], '-dpng', '-r300');
+    exportgraphics(gcf, [baseName '.png'], 'Resolution', 300);
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
