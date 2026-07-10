@@ -17,10 +17,10 @@ clear; clc;
 %% ==================== COHORT FILE MAP ====================
 % Add one cell per cohort: {baselineCSV, postCSV}
 cohortFiles = {
-    {'/path/to/B4/beamwalking_time_and_speed_B4_baseline.csv', ...
-     '/path/to/B4/beamwalking_time_and_speed_B4_post.csv'}, ...
-    {'/path/to/B5/beamwalking_time_and_speed_B5_baseline.csv', ...
-     '/path/to/B5/beamwalking_time_and_speed_B5_post.csv'}, ...
+    {"\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B2_cohort_2_baseline_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B2.csv", ...
+     "\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B4_cohort_2_post_injection_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B4.csv"}, ...
+    {"\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B3_cohort_3_baseline_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B3.csv", ...
+     "\\\\moorelaboratory.dts.usc.edu\\Shared\\Shuting\\P1-SNr\\B5_cohort_3_post_injection_bahavior\\stats_and_analysis\\balancebeam\\beamwalking_time_and_speed_B5.csv"}, ...
 };
 
 %% ==================== SETTINGS ====================
@@ -270,11 +270,12 @@ metricShort = strrep(metric, '_', '-');
 baseName = fullfile(outputDir, sprintf('%s_%s_change_Day%s-vs-Day%s', ...
     version, metricShort, w1Str, w2Str));
 
-exportgraphics(fig, [baseName '.pdf'], 'ContentType', 'vector');
+set(fig, 'Renderer', 'painters');
+print(fig, [baseName '.pdf'], '-dpdf', '-painters');
 fprintf('\nSaved: %s.pdf\n', baseName);
 
 if png_flag
-    exportgraphics(fig, [baseName '.png'], 'Resolution', 300);
+    print(fig, [baseName '.png'], '-dpng', '-r300');
     fprintf('Saved: %s.png\n', baseName);
 end
 if ai_flag
