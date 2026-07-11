@@ -141,23 +141,16 @@ for iMouse = 1:numel(mouseIDs)
 
     if isempty(postRows); continue; end
 
-    % Baseline mean per metric (omitting NaN from flagged rows)
-    baseMeans = struct();
-    for c = 1:numel(numericMetricCols)
-        col = numericMetricCols{c};
-        if ismember(col, baseRows.Properties.VariableNames)
-            baseMeans.(col) = mean(baseRows.(col), 'omitnan');
-        else
-            baseMeans.(col) = NaN;
-        end
-    end
+    % Sort both sessions by ascending Day number so sequential index matches
+    baseRows = sortrows(baseRows, 'Day');
+    postRows = sortrows(postRows, 'Day');
+    nBase    = height(baseRows);
+    nPost    = height(postRows);
 
-    % One output row per post day
-    postDays = sort(unique(postRows.Day));
-    for dIdx = 1:numel(postDays)
-        actualDay = postDays(dIdx);
-        dayRow    = postRows(postRows.Day == actualDay, :);
-        if isempty(dayRow); continue; end
+    % One output row per post day; baseline matched by same sequential index
+    for dIdx = 1:nPost
+        postDayRow = postRows(dIdx, :);
+        actualDay  = postDayRow.Day;
 
         % Fresh struct each iteration — prevents stale fields from prior rows
         row = struct();
@@ -168,12 +161,20 @@ for iMouse = 1:numel(mouseIDs)
 
         for c = 1:numel(numericMetricCols)
             col = numericMetricCols{c};
-            if ismember(col, dayRow.Properties.VariableNames)
-                postVal = dayRow.(col)(1);
+
+            % Post value: exact day match
+            if ismember(col, postDayRow.Properties.VariableNames)
+                postVal = postDayRow.(col)(1);
             else
                 postVal = NaN;
             end
-            baseVal = baseMeans.(col);
+
+            % Baseline value: same sequential index (NaN if no baseline that day)
+            if dIdx <= nBase && ismember(col, baseRows.Properties.VariableNames)
+                baseVal = baseRows.(col)(dIdx);
+            else
+                baseVal = NaN;
+            end
 
             row.(['baseline_' col]) = baseVal;
             row.(['post_'     col]) = postVal;
