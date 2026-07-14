@@ -1,8 +1,8 @@
 %% Balance beam: Baseline vs Post (two bars per mouse)
 clearvars; clc;clearvars; clc;
 % ---- INPUTS ----
-baselineFile = '/Volumes/Shared/Shuting/P1-SNr/B2_cohort_2_baseline_bahavior/stats_and_analysis/balancebeam/summary_behavior_metrics.xlsx';
-postFile     = '/Volumes/Shared/Shuting/P1-SNr/B4_cohort_2_post_injection_bahavior/stats_and_analysis/balancebeam/summary_behavior_metrics_post.xlsx';
+baselineFile = "\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B2_cohort_2_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B2.csv";
+postFile     = "\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B4_cohort_2_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B4.csv";
 
 % Optional: slips (must align with ANIMALID order after grouping)
 % If you have slips per mouse per condition, use two vectors:
@@ -14,8 +14,8 @@ Tb = readtable(baselineFile);
 Tp = readtable(postFile);
 
 % Ensure consistent ID type
-Tb.ANIMALID = string(Tb.ANIMALID);
-Tp.ANIMALID = string(Tp.ANIMALID);
+Tb.ANIMALID = string(Tb.ID);
+Tp.ANIMALID = string(Tp.ID);
 
 % ---- BUILD A COMMON MOUSE ORDER (union, stable) ----
 allIDs = unique([Tb.ANIMALID; Tp.ANIMALID], 'stable');

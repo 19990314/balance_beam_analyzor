@@ -30,15 +30,15 @@ function step3_routeanalysis(folder)
         warning('pixels_per_cm_output.xlsx not found; cm/s columns will be NaN.');
     end
 
-    snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC20','SC31','SC32','LM45'};
-    ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36'};
+    snrDtaIDs = {'SC04','SC05','SC06','SC09','SC10','SC11','SC12','SC29','SC30','SC31','SC32','SC46', 'SC47', 'SC48', 'SC49','LM45'};
+    ctrlIDs   = {'SC07','SC08','SC13','SC14','SC15','SC33','SC34','SC35','SC36', 'SC51', 'SC52', 'SC53'};
 
     Video={}; ID={}; Day=[]; Group={};
     PauseTime_sec=[]; CrawlingTime_sec=[]; CrossingTime_sec=[];
     PausePct=[]; CrawlingPct=[]; CrossingPct=[]; PixelsPerCm=[];
     MedianSpeed_px_frame_pauseIncluded=[]; MeanSpeed_px_frame_pauseIncluded=[];
     MedianSpeed_cm_s_pauseIncluded=[];     MeanSpeed_cm_s_pauseIncluded=[];
-    MedianSpeed_px_s_pauseExcluded=[];     MeanSpeed_px_s_pauseExcluded=[];
+    MedianSpeed_px_frame_pauseExcluded=[]; MeanSpeed_px_frame_pauseExcluded=[];
     MedianSpeed_cm_s_pauseExcluded=[];     MeanSpeed_cm_s_pauseExcluded=[];
 
     for k = 1:numel(files)
@@ -88,14 +88,14 @@ function step3_routeanalysis(folder)
             activeMask = true(numel(spd_pf),1);
         end
 
-        spd_ps_exc = spd_pf(activeMask)*fps;
-        if isempty(spd_ps_exc) || all(isnan(spd_ps_exc))
+        spd_pxPf_exc = spd_pf(activeMask);
+        if isempty(spd_pxPf_exc) || all(isnan(spd_pxPf_exc))
             medPxS_exc=NaN; mnPxS_exc=NaN;
             warning('No active (non-pause) frames in %s.', files(k).name);
         else
-            medPxS_exc=median(spd_ps_exc,'omitnan'); mnPxS_exc=mean(spd_ps_exc,'omitnan');
+            medPxS_exc=median(spd_pxPf_exc,'omitnan'); mnPxS_exc=mean(spd_pxPf_exc,'omitnan');
         end
-        medCm_exc=medPxS_exc/ppc; mnCm_exc=mnPxS_exc/ppc;
+        medCm_exc=medPxS_exc*fps/ppc; mnCm_exc=mnPxS_exc*fps/ppc;
 
         % Extract ID, Day, Group from filename
         mouseID = upper(base(1:min(4, numel(base))));
@@ -115,7 +115,7 @@ function step3_routeanalysis(folder)
         PixelsPerCm(end+1)=ppc;
         MedianSpeed_px_frame_pauseIncluded(end+1)=medPxPf_inc; MeanSpeed_px_frame_pauseIncluded(end+1)=mnPxPf_inc;
         MedianSpeed_cm_s_pauseIncluded(end+1)=medCm_inc;       MeanSpeed_cm_s_pauseIncluded(end+1)=mnCm_inc;
-        MedianSpeed_px_s_pauseExcluded(end+1)=medPxS_exc;      MeanSpeed_px_s_pauseExcluded(end+1)=mnPxS_exc;
+        MedianSpeed_px_frame_pauseExcluded(end+1)=medPxS_exc;  MeanSpeed_px_frame_pauseExcluded(end+1)=mnPxS_exc;
         MedianSpeed_cm_s_pauseExcluded(end+1)=medCm_exc;       MeanSpeed_cm_s_pauseExcluded(end+1)=mnCm_exc;
     end
 
@@ -124,14 +124,14 @@ function step3_routeanalysis(folder)
               PausePct',CrawlingPct',CrossingPct',PixelsPerCm', ...
               MedianSpeed_px_frame_pauseIncluded',MeanSpeed_px_frame_pauseIncluded', ...
               MedianSpeed_cm_s_pauseIncluded',    MeanSpeed_cm_s_pauseIncluded', ...
-              MedianSpeed_px_s_pauseExcluded',    MeanSpeed_px_s_pauseExcluded', ...
+              MedianSpeed_px_frame_pauseExcluded',    MeanSpeed_px_frame_pauseExcluded', ...
               MedianSpeed_cm_s_pauseExcluded',    MeanSpeed_cm_s_pauseExcluded', ...
         'VariableNames',{'Video','ID','Day','Group', ...
             'PauseTime_sec','CrawlingTime_sec','CrossingTime_sec', ...
             'PausePct','CrawlingPct','CrossingPct','PixelsPerCm', ...
             'MedianSpeed_px_per_frame_pauseIncluded','MeanSpeed_px_per_frame_pauseIncluded', ...
             'MedianSpeed_cm_s_pauseIncluded','MeanSpeed_cm_s_pauseIncluded', ...
-            'MedianSpeed_px_s_pauseExcluded','MeanSpeed_px_s_pauseExcluded', ...
+            'MedianSpeed_px_frame_pauseExcluded','MeanSpeed_px_frame_pauseExcluded', ...
             'MedianSpeed_cm_s_pauseExcluded','MeanSpeed_cm_s_pauseExcluded'});
 
     outDir = fullfile(folder,'stats_and_analysis/balancebeam');
