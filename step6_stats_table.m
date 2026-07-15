@@ -1,20 +1,22 @@
 %% step6_stats_table.m
-% Exports a per-animal × per-post-day statistics CSV combining baseline
-% and post-injection metrics from step3 output files.
+% Builds a paired baseline/post statistics CSV from step3 output files.
 %
-% Output columns (one row per animal per post day):
-%   ID, Group, Day (sequential 1,2,...), ActualDay,
-%   baseline_<metric>  (mean over all valid baseline days),
-%   post_<metric>      (per-day post value),
-%   delta_<metric>     (post - baseline mean)
+% For each cohort pair the user supplies:
+%   - Baseline CSV  (e.g. beamwalking_time_and_speed_B2.csv)
+%   - Post CSV      (e.g. beamwalking_time_and_speed_B4.csv)
 %
-% Rows flagged in the Note column are excluded from metric values
-% (their metric cells are set to NaN) but the row structure is kept.
-% Mice in miceToExclude are dropped entirely.
+% Matching rule: animals are matched by ID; days are paired by sequential
+% index (baseline day 1 ↔ post day 1, baseline day 2 ↔ post day 2, …).
+% Rows whose Note column is non-empty have their metrics set to NaN.
+%
+% Output: one row per animal × post day, with baseline_<metric> and
+%         post_<metric> columns for every numeric metric in the CSVs.
 
 clear; clc;
 
 %% ==================== COHORT FILE MAP ====================
+% Each row: {baselineCSV, postCSV}
+% You can add more cohort pairs here.
 cohortFiles = {
     {'\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B2_cohort_2_baseline_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B2.csv', ...
      '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\B4_cohort_2_post_injection_bahavior\stats_and_analysis\balancebeam\beamwalking_time_and_speed_B4.csv'}, ...
@@ -28,159 +30,136 @@ cohortFiles = {
 
 %% ==================== SETTINGS ====================
 
-% Mice to exclude globally
+% Mice to exclude globally (applied across all cohorts)
 miceToExclude = [];   % e.g. ["SC01", "LM45"]
 
 % Output file name
 outputFileName = 'beamwalking_stats_table.csv';
 
-% Where to save (user selects via dialog)
-default_output = '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\Figures-P1-SNr\Data\Balance Beam';
-outputDir = uigetdir(default_output, 'Select output folder for stats CSV');
+% Columns that are bookkeeping, not metrics
+excludeCols = {'Video', 'ID', 'Day', 'Days', 'Group', 'Note', ...
+               'Slips', 'ValueToPlot', 'baseline_total_time', ...
+               'postinjection_total_time'};
+
+%% ==================== SELECT OUTPUT FOLDER ====================
+
+defaultOut = '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\Figures-P1-SNr\Data\Balance Beam';
+outputDir = uigetdir(defaultOut, 'Select output folder for stats CSV');
 if isequal(outputDir, 0)
     error('No output folder selected. Exiting.');
 end
 
-%% ==================== LOAD & POOL ALL COHORTS ====================
+%% ==================== PROCESS COHORTS ====================
 
-allTables = {};
+outRows = {};
 
 for iCohort = 1:numel(cohortFiles)
-    basePath = cohortFiles{iCohort}{1};
-    postPath = cohortFiles{iCohort}{2};
+    baselinePath = cohortFiles{iCohort}{1};
+    postPath     = cohortFiles{iCohort}{2};
 
-    tBase         = readtable(basePath);
-    tBase.Session = repmat("baseline", height(tBase), 1);
+    fprintf('\n--- Cohort %d ---\n', iCohort);
+    fprintf('  Baseline: %s\n', baselinePath);
+    fprintf('  Post:     %s\n', postPath);
 
-    tPost         = readtable(postPath);
-    tPost.Session = repmat("post", height(tPost), 1);
+    tBase = readtable(baselinePath);
+    tPost = readtable(postPath);
 
-    allTables{end+1} = tBase; %#ok<AGROW>
-    allTables{end+1} = tPost; %#ok<AGROW>
-end
-
-% Align columns across all tables before concatenating.
-allCols = {};
-for k = 1:numel(allTables)
-    allCols = union(allCols, allTables{k}.Properties.VariableNames, 'stable');
-end
-allCols = unique(allCols, 'stable');   % guarantee no duplicates before reorder
-for k = 1:numel(allTables)
-    missingCols = setdiff(allCols, allTables{k}.Properties.VariableNames);
-    for c = 1:numel(missingCols)
-        if strcmp(missingCols{c}, 'Note')
-            allTables{k}.Note = repmat({''}, height(allTables{k}), 1);
-        else
-            allTables{k}.(missingCols{c}) = NaN(height(allTables{k}), 1);
-        end
-    end
-    % Normalize text columns to string so vertcat succeeds
-    textCols = {'Note', 'Group', 'ID'};
-    for tc = 1:numel(textCols)
-        col = textCols{tc};
-        if ismember(col, allTables{k}.Properties.VariableNames)
-            v = allTables{k}.(col);
-            if iscell(v)
-                allTables{k}.(col) = string(v);
-            elseif isnumeric(v)
-                allTables{k}.(col) = repmat("", height(allTables{k}), 1);
+    % Normalize ID, Group, Note to string in both tables
+    for tbl = {'tBase', 'tPost'}
+        t = eval(tbl{1});
+        for col = {'ID', 'Group', 'Note'}
+            if ismember(col{1}, t.Properties.VariableNames)
+                v = t.(col{1});
+                if iscell(v)
+                    t.(col{1}) = string(v);
+                elseif isnumeric(v)
+                    t.(col{1}) = repmat("", height(t), 1);
+                end
             end
         end
+        eval([tbl{1} ' = t;']);
     end
-    allTables{k} = allTables{k}(:, allCols);
-end
 
-allData = vertcat(allTables{:});
-allData.ID    = string(allData.ID);
-allData.Group = string(allData.Group);
+    % Determine metric columns from the POST file
+    % (post is the primary data; baseline is matched to it)
+    postVars = tPost.Properties.VariableNames;
+    postVars = postVars(~ismember(postVars, excludeCols));
+    isNum    = varfun(@isnumeric, tPost(:, postVars), 'OutputFormat', 'uniform');
+    metricCols = unique(postVars(isNum), 'stable');
 
-% Identify numeric metric columns — exclude all bookkeeping/index columns
-excludeAlways = {'ID','Group','Day','Days','Session','Note', ...
-                 'Slips','ValueToPlot','baseline_total_time', ...
-                 'postinjection_total_time'};
-metricCols = allData.Properties.VariableNames;
-metricCols = metricCols(~ismember(metricCols, excludeAlways));
-isNum = varfun(@isnumeric, allData(:, metricCols), 'OutputFormat', 'uniform');
-numericMetricCols = unique(metricCols(isNum), 'stable');   % unique as final guard
-fprintf('Metric columns found (%d):\n', numel(numericMetricCols));
-fprintf('  %s\n', numericMetricCols{:});
+    fprintf('  Metrics (%d): %s\n', numel(metricCols), strjoin(metricCols, ', '));
 
-if ismember('Note', allData.Properties.VariableNames)
-    hasNote = strtrim(allData.Note) ~= "";
-    nFlagged = sum(hasNote);
-    if nFlagged > 0
-        fprintf('Nulling metrics for %d flagged rows (Note non-empty).\n', nFlagged);
-        for c = 1:numel(numericMetricCols)
-            allData.(numericMetricCols{c})(hasNote) = NaN;
+    % Apply Note masking: set metric values to NaN for flagged rows
+    for tbl = {'tBase', 'tPost'}
+        t = eval(tbl{1});
+        if ismember('Note', t.Properties.VariableNames)
+            flagged = strtrim(t.Note) ~= "";
+            if any(flagged)
+                fprintf('  Nulling %d flagged rows in %s\n', sum(flagged), tbl{1});
+                for c = 1:numel(metricCols)
+                    col = metricCols{c};
+                    if ismember(col, t.Properties.VariableNames)
+                        t.(col)(flagged) = NaN;
+                    end
+                end
+            end
         end
+        eval([tbl{1} ' = t;']);
     end
-end
 
-% Exclude specified mice
-if ~isempty(miceToExclude)
-    before = height(allData);
-    for i = 1:numel(miceToExclude)
-        allData(allData.ID == string(miceToExclude(i)), :) = [];
-    end
-    fprintf('Excluded %d rows for: %s\n', before - height(allData), ...
-        strjoin(string(miceToExclude), ', '));
-end
+    % Per-animal pairing
+    mouseIDs = unique(tPost.ID, 'stable');
 
-%% ==================== BUILD OUTPUT TABLE ====================
+    for iMouse = 1:numel(mouseIDs)
+        mID = mouseIDs(iMouse);
 
-mouseIDs = unique(allData.ID, 'stable');
-outRows  = {};
-
-for iMouse = 1:numel(mouseIDs)
-    mID   = mouseIDs(iMouse);
-    mData = allData(allData.ID == mID, :);
-    grp   = mData.Group(1);
-
-    baseRows = mData(mData.Session == "baseline", :);
-    postRows = mData(mData.Session == "post",     :);
-
-    if isempty(postRows); continue; end
-
-    % Sort both sessions by ascending Day number so sequential index matches
-    baseRows = sortrows(baseRows, 'Day');
-    postRows = sortrows(postRows, 'Day');
-    nBase    = height(baseRows);
-    nPost    = height(postRows);
-
-    % One output row per post day; baseline matched by same sequential index
-    for dIdx = 1:nPost
-        postDayRow = postRows(dIdx, :);
-        actualDay  = postDayRow.Day;
-
-        % Fresh struct each iteration — prevents stale fields from prior rows
-        row = struct();
-        row.ID                  = mID;
-        row.Group               = grp;
-        row.Day                 = dIdx;
-        row.ActualExperimentDay = actualDay;
-
-        for c = 1:numel(numericMetricCols)
-            col = numericMetricCols{c};
-
-            % Post value: exact day match
-            if ismember(col, postDayRow.Properties.VariableNames)
-                postVal = postDayRow.(col)(1);
-            else
-                postVal = NaN;
-            end
-
-            % Baseline value: same sequential index (NaN if no baseline that day)
-            if dIdx <= nBase && ismember(col, baseRows.Properties.VariableNames)
-                baseVal = baseRows.(col)(dIdx);
-            else
-                baseVal = NaN;
-            end
-
-            row.(['baseline_' col]) = baseVal;
-            row.(['post_'     col]) = postVal;
+        % Skip excluded mice
+        if ~isempty(miceToExclude) && any(string(miceToExclude) == mID)
+            fprintf('  Skipping excluded mouse: %s\n', mID);
+            continue;
         end
 
-        outRows{end+1} = row; %#ok<AGROW>
+        postRows = tPost(tPost.ID == mID, :);
+        baseRows = tBase(tBase.ID == mID, :);
+
+        % Sort both by Day number ascending
+        postRows = sortrows(postRows, 'Day');
+        baseRows = sortrows(baseRows, 'Day');
+
+        nPost = height(postRows);
+        nBase = height(baseRows);
+        grp   = postRows.Group(1);
+
+        for dIdx = 1:nPost
+            row = struct();
+            row.ID                  = mID;
+            row.Group               = grp;
+            row.Day                 = dIdx;
+            row.ActualExperimentDay = postRows.Day(dIdx);
+
+            for c = 1:numel(metricCols)
+                col = metricCols{c};
+
+                % Post value: this day's row
+                if ismember(col, postRows.Properties.VariableNames)
+                    postVal = postRows.(col)(dIdx);
+                else
+                    postVal = NaN;
+                end
+
+                % Baseline value: same sequential index (NaN if no baseline row)
+                if dIdx <= nBase && ismember(col, baseRows.Properties.VariableNames)
+                    baseVal = baseRows.(col)(dIdx);
+                else
+                    baseVal = NaN;
+                end
+
+                row.(['baseline_' col]) = baseVal;
+                row.(['post_'     col]) = postVal;
+            end
+
+            outRows{end+1} = row; %#ok<AGROW>
+        end
     end
 end
 
@@ -190,10 +169,9 @@ if isempty(outRows)
     error('No output rows generated. Check file paths and column names.');
 end
 
-% Convert struct array to table
 outTable = struct2table(vertcat(outRows{:}));
-
-outPath = fullfile(outputDir, outputFileName);
+outPath  = fullfile(outputDir, outputFileName);
 writetable(outTable, outPath);
-fprintf('\nSaved stats table (%d rows, %d animals) to:\n  %s\n', ...
-    height(outTable), numel(mouseIDs), outPath);
+
+fprintf('\nSaved %d rows (%d animals) to:\n  %s\n', ...
+    height(outTable), numel(unique(outTable.ID)), outPath);
