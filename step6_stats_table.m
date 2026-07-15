@@ -148,12 +148,23 @@ while true
         % Days = total number of post-injection days for this animal
         totalDays = nPost;
 
+        % Find numeric metric columns in each source table (exclude bookkeeping)
+        baseNumCols = baseRows.Properties.VariableNames( ...
+            varfun(@isnumeric, baseRows, 'OutputFormat', 'uniform'));
+        baseNumCols = baseNumCols(~ismember(baseNumCols, bookkeepCols));
+
+        postNumCols = postRows.Properties.VariableNames( ...
+            varfun(@isnumeric, postRows, 'OutputFormat', 'uniform'));
+        postNumCols = postNumCols(~ismember(postNumCols, bookkeepCols));
+
         for dIdx = 1:nPost
             row = struct();
-            row.ID   = mID;
-            row.Days = totalDays;
+            row.ID    = mID;
+            % Days = actual Day value from source post CSV
+            % Day  = Days - 1 (sequential 1-based index)
+            row.Days  = postRows.Day(dIdx);
             row.Group = grp;
-            row.Day  = dIdx;
+            row.Day   = row.Days - 1;
 
             % --- Baseline-mapped meta columns (skip *_total_time; computed below) ---
             for c = 1:numel(baselineMeta)
@@ -191,21 +202,28 @@ while true
                 end
             end
 
-            % --- Compute *_total_time as sum of the other component columns ---
-            for prefix = {'baseline_', 'postinjection_'}
-                pfx      = prefix{1};
-                totalCol = [pfx 'total_time'];
-                % find all filled columns with this prefix that are not total_time
-                compCols = fieldnames(row);
-                compCols = compCols(startsWith(compCols, pfx) & ~strcmp(compCols, totalCol));
-                if ~isempty(compCols)
+            % --- baseline_total_time: sum all numeric source columns from baseline ---
+            if ismember('baseline_total_time', baselineMeta)
+                if dIdx <= nBase
                     s = 0;
-                    for cc = 1:numel(compCols)
-                        v = row.(compCols{cc});
+                    for cc = 1:numel(baseNumCols)
+                        v = baseRows.(baseNumCols{cc})(dIdx);
                         if ~isnan(v); s = s + v; end
                     end
-                    row.(totalCol) = s;
+                    row.baseline_total_time = s;
+                else
+                    row.baseline_total_time = NaN;
                 end
+            end
+
+            % --- postinjection_total_time: sum all numeric source columns from post ---
+            if ismember('postinjection_total_time', postMeta)
+                s = 0;
+                for cc = 1:numel(postNumCols)
+                    v = postRows.(postNumCols{cc})(dIdx);
+                    if ~isnan(v); s = s + v; end
+                end
+                row.postinjection_total_time = s;
             end
 
             % ValueToPlot = postinjection_total_time
