@@ -247,20 +247,47 @@ end
 
 tNew = struct2table(vertcat(newRows{:}));
 
-% Reorder tNew columns to match meta schema (add NaN for any missing cols)
+% New speed columns to add to the output schema
+speedCols = {'baseline_MedianSpeed_cm_s_pauseIncluded', ...
+             'baseline_MedianSpeed_cm_s_pauseExcluded', ...
+             'postinjection_MedianSpeed_cm_s_pauseIncluded', ...
+             'postinjection_MedianSpeed_cm_s_pauseExcluded'};
+
+% Add any missing meta columns to tNew (NaN for unmatched)
 for c = 1:numel(metaCols)
     if ~ismember(metaCols{c}, tNew.Properties.VariableNames)
         tNew.(metaCols{c}) = NaN(height(tNew), 1);
     end
 end
-tNew = tNew(:, metaCols);
 
-% Rename Days → Experiment_Day in both tMeta and tNew
+% Add speed columns to tMeta (blank for existing rows) and tNew (if missing)
+for c = 1:numel(speedCols)
+    col = speedCols{c};
+    if ~ismember(col, tMeta.Properties.VariableNames)
+        tMeta.(col) = NaN(height(tMeta), 1);
+    end
+    if ~ismember(col, tNew.Properties.VariableNames)
+        tNew.(col) = NaN(height(tNew), 1);
+    end
+end
+
+% Build unified column order: meta cols + speed cols (deduplicated)
+allOutCols = [metaCols, speedCols(~ismember(speedCols, metaCols))];
+
+% Rename Days → Experiment_Day in both tables
 for tbl = {'tMeta', 'tNew'}
     t = eval(tbl{1});
     if ismember('Days', t.Properties.VariableNames)
         t.Properties.VariableNames{'Days'} = 'Experiment_Day';
     end
+    eval([tbl{1} ' = t;']);
+end
+allOutCols = strrep(allOutCols, 'Days', 'Experiment_Day');
+
+% Align both tables to allOutCols before vertcat
+for tbl = {'tMeta', 'tNew'}
+    t = eval(tbl{1});
+    t = t(:, allOutCols(ismember(allOutCols, t.Properties.VariableNames)));
     eval([tbl{1} ' = t;']);
 end
 
