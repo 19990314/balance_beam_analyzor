@@ -202,12 +202,14 @@ while true
                 end
             end
 
-            % --- baseline_total_time: sum all numeric source columns from baseline ---
+            % --- baseline_total_time: sum crossing + pausing + crawling from baseline ---
             if ismember('baseline_total_time', baselineMeta)
                 if dIdx <= nBase
+                    timeCols = baseNumCols(contains(baseNumCols, ...
+                        {'Crossing','Pause','Crawl'}, 'IgnoreCase', true));
                     s = 0;
-                    for cc = 1:numel(baseNumCols)
-                        v = baseRows.(baseNumCols{cc})(dIdx);
+                    for cc = 1:numel(timeCols)
+                        v = baseRows.(timeCols{cc})(dIdx);
                         if ~isnan(v); s = s + v; end
                     end
                     row.baseline_total_time = s;
@@ -216,11 +218,13 @@ while true
                 end
             end
 
-            % --- postinjection_total_time: sum all numeric source columns from post ---
+            % --- postinjection_total_time: sum crossing + pausing + crawling from post ---
             if ismember('postinjection_total_time', postMeta)
+                timeCols = postNumCols(contains(postNumCols, ...
+                    {'Crossing','Pause','Crawl'}, 'IgnoreCase', true));
                 s = 0;
-                for cc = 1:numel(postNumCols)
-                    v = postRows.(postNumCols{cc})(dIdx);
+                for cc = 1:numel(timeCols)
+                    v = postRows.(timeCols{cc})(dIdx);
                     if ~isnan(v); s = s + v; end
                 end
                 row.postinjection_total_time = s;
