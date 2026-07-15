@@ -157,17 +157,14 @@ while true
             row.Group = grp;
             row.Day   = row.Days - 1;
 
-            % --- Baseline component columns + total (same structure as post) ---
-            % Derive list of component columns from post CSV, look for them in baseline
-            baseSum = 0;
+            % --- Baseline component columns ---
+            % Mirror each post component column → look up in baseline CSV
             for c = 1:numel(postMeta)
                 metaCol = postMeta{c};
                 if endsWith(metaCol, '_total_time'); continue; end
-                % Corresponding baseline col name
-                stripped = metaCol(numel('postinjection_')+1:end);   % e.g. CrossingTime_sec
-                baseCol  = ['baseline_' stripped];                    % e.g. baseline_CrossingTime_sec
+                stripped = metaCol(numel('postinjection_')+1:end);  % e.g. CrossingTime_sec
+                baseCol  = ['baseline_' stripped];                   % e.g. baseline_CrossingTime_sec
                 if dIdx <= nBase
-                    % try exact name, then stripped name in baseline table
                     if ismember(stripped, baseRows.Properties.VariableNames)
                         v = baseRows.(stripped)(dIdx);
                     elseif ismember(baseCol, baseRows.Properties.VariableNames)
@@ -179,17 +176,16 @@ while true
                     v = NaN;
                 end
                 row.(baseCol) = v;
-                if ~isnan(v); baseSum = baseSum + v; end
             end
-            % baseline_total_time = sum of the three component values above
-            if dIdx <= nBase
-                row.baseline_total_time = baseSum;
+            % baseline_total_time = CrossingTime + PauseTime + CrawlingTime
+            bVals = [row.baseline_CrossingTime_sec, row.baseline_PauseTime_sec, row.baseline_CrawlingTime_sec];
+            if dIdx <= nBase && any(~isnan(bVals))
+                row.baseline_total_time = sum(bVals(~isnan(bVals)));
             else
                 row.baseline_total_time = NaN;
             end
 
-            % --- Post-mapped meta columns (skip *_total_time; computed after) ---
-            postSum = 0;
+            % --- Post-mapped meta columns ---
             for c = 1:numel(postMeta)
                 metaCol = postMeta{c};
                 if endsWith(metaCol, '_total_time'); continue; end
@@ -204,10 +200,14 @@ while true
                     end
                 end
                 row.(metaCol) = v;
-                if ~isnan(v); postSum = postSum + v; end
             end
-            % postinjection_total_time = sum of the three component values above
-            row.postinjection_total_time = postSum;
+            % postinjection_total_time = CrossingTime + PauseTime + CrawlingTime
+            pVals = [row.postinjection_CrossingTime_sec, row.postinjection_PauseTime_sec, row.postinjection_CrawlingTime_sec];
+            if any(~isnan(pVals))
+                row.postinjection_total_time = sum(pVals(~isnan(pVals)));
+            else
+                row.postinjection_total_time = NaN;
+            end
 
             % --- Speed columns (MedianSpeed_cm_s_pauseIncluded/Excluded) ---
             for pfxPair = {{'baseline_', baseRows, dIdx <= nBase}, ...
