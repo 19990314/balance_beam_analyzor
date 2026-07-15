@@ -148,15 +148,6 @@ while true
         % Days = total number of post-injection days for this animal
         totalDays = nPost;
 
-        % Find numeric metric columns in each source table (exclude bookkeeping)
-        baseNumCols = baseRows.Properties.VariableNames( ...
-            varfun(@isnumeric, baseRows, 'OutputFormat', 'uniform'));
-        baseNumCols = baseNumCols(~ismember(baseNumCols, bookkeepCols));
-
-        postNumCols = postRows.Properties.VariableNames( ...
-            varfun(@isnumeric, postRows, 'OutputFormat', 'uniform'));
-        postNumCols = postNumCols(~ismember(postNumCols, bookkeepCols));
-
         for dIdx = 1:nPost
             row = struct();
             row.ID    = mID;
@@ -166,68 +157,56 @@ while true
             row.Group = grp;
             row.Day   = row.Days - 1;
 
-            % --- Baseline-mapped meta columns (skip *_total_time; computed below) ---
+            % --- Baseline-mapped meta columns (skip *_total_time; computed after) ---
+            baseSum = 0;
             for c = 1:numel(baselineMeta)
                 metaCol = baselineMeta{c};
                 if endsWith(metaCol, '_total_time'); continue; end
                 if dIdx <= nBase
                     if ismember(metaCol, baseRows.Properties.VariableNames)
-                        row.(metaCol) = baseRows.(metaCol)(dIdx);
+                        v = baseRows.(metaCol)(dIdx);
                     else
                         stripped = metaCol(numel('baseline_')+1:end);
                         if ismember(stripped, baseRows.Properties.VariableNames)
-                            row.(metaCol) = baseRows.(stripped)(dIdx);
+                            v = baseRows.(stripped)(dIdx);
                         else
-                            row.(metaCol) = NaN;
+                            v = NaN;
                         end
                     end
                 else
-                    row.(metaCol) = NaN;
+                    v = NaN;
                 end
+                row.(metaCol) = v;
+                if ~isnan(v); baseSum = baseSum + v; end
             end
-
-            % --- Post-mapped meta columns (skip *_total_time; computed below) ---
-            for c = 1:numel(postMeta)
-                metaCol = postMeta{c};
-                if endsWith(metaCol, '_total_time'); continue; end
-                if ismember(metaCol, postRows.Properties.VariableNames)
-                    row.(metaCol) = postRows.(metaCol)(dIdx);
-                else
-                    stripped = metaCol(numel('postinjection_')+1:end);
-                    if ismember(stripped, postRows.Properties.VariableNames)
-                        row.(metaCol) = postRows.(stripped)(dIdx);
-                    else
-                        row.(metaCol) = NaN;
-                    end
-                end
-            end
-
-            % --- baseline_total_time: sum crossing + pausing + crawling from baseline ---
             if ismember('baseline_total_time', baselineMeta)
                 if dIdx <= nBase
-                    timeCols = baseNumCols(contains(baseNumCols, ...
-                        {'Crossing','Pause','Crawl'}, 'IgnoreCase', true));
-                    s = 0;
-                    for cc = 1:numel(timeCols)
-                        v = baseRows.(timeCols{cc})(dIdx);
-                        if ~isnan(v); s = s + v; end
-                    end
-                    row.baseline_total_time = s;
+                    row.baseline_total_time = baseSum;
                 else
                     row.baseline_total_time = NaN;
                 end
             end
 
-            % --- postinjection_total_time: sum crossing + pausing + crawling from post ---
-            if ismember('postinjection_total_time', postMeta)
-                timeCols = postNumCols(contains(postNumCols, ...
-                    {'Crossing','Pause','Crawl'}, 'IgnoreCase', true));
-                s = 0;
-                for cc = 1:numel(timeCols)
-                    v = postRows.(timeCols{cc})(dIdx);
-                    if ~isnan(v); s = s + v; end
+            % --- Post-mapped meta columns (skip *_total_time; computed after) ---
+            postSum = 0;
+            for c = 1:numel(postMeta)
+                metaCol = postMeta{c};
+                if endsWith(metaCol, '_total_time'); continue; end
+                if ismember(metaCol, postRows.Properties.VariableNames)
+                    v = postRows.(metaCol)(dIdx);
+                else
+                    stripped = metaCol(numel('postinjection_')+1:end);
+                    if ismember(stripped, postRows.Properties.VariableNames)
+                        v = postRows.(stripped)(dIdx);
+                    else
+                        v = NaN;
+                    end
                 end
-                row.postinjection_total_time = s;
+                row.(metaCol) = v;
+                if ~isnan(v); postSum = postSum + v; end
+            end
+            if ismember('postinjection_total_time', postMeta)
+                row.postinjection_total_time = postSum;
             end
 
             % ValueToPlot = postinjection_total_time
