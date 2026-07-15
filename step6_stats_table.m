@@ -155,11 +155,11 @@ while true
             row.Group = grp;
             row.Day  = dIdx;
 
-            % --- Baseline-mapped meta columns ---
+            % --- Baseline-mapped meta columns (skip *_total_time; computed below) ---
             for c = 1:numel(baselineMeta)
-                metaCol = baselineMeta{c};   % e.g. "baseline_total_time"
+                metaCol = baselineMeta{c};
+                if endsWith(metaCol, '_total_time'); continue; end
                 if dIdx <= nBase
-                    % Try exact name, then strip "baseline_" prefix
                     if ismember(metaCol, baseRows.Properties.VariableNames)
                         row.(metaCol) = baseRows.(metaCol)(dIdx);
                     else
@@ -175,10 +175,10 @@ while true
                 end
             end
 
-            % --- Post-mapped meta columns ---
+            % --- Post-mapped meta columns (skip *_total_time; computed below) ---
             for c = 1:numel(postMeta)
-                metaCol = postMeta{c};       % e.g. "postinjection_CrossingTime_sec"
-                % Try exact name, then strip "postinjection_" prefix
+                metaCol = postMeta{c};
+                if endsWith(metaCol, '_total_time'); continue; end
                 if ismember(metaCol, postRows.Properties.VariableNames)
                     row.(metaCol) = postRows.(metaCol)(dIdx);
                 else
@@ -191,8 +191,25 @@ while true
                 end
             end
 
-            % ValueToPlot = postinjection_total_time if present
-            if ismember('postinjection_total_time', postMeta)
+            % --- Compute *_total_time as sum of the other component columns ---
+            for prefix = {'baseline_', 'postinjection_'}
+                pfx      = prefix{1};
+                totalCol = [pfx 'total_time'];
+                % find all filled columns with this prefix that are not total_time
+                compCols = fieldnames(row);
+                compCols = compCols(startsWith(compCols, pfx) & ~strcmp(compCols, totalCol));
+                if ~isempty(compCols)
+                    s = 0;
+                    for cc = 1:numel(compCols)
+                        v = row.(compCols{cc});
+                        if ~isnan(v); s = s + v; end
+                    end
+                    row.(totalCol) = s;
+                end
+            end
+
+            % ValueToPlot = postinjection_total_time
+            if isfield(row, 'postinjection_total_time')
                 row.ValueToPlot = row.postinjection_total_time;
             end
 
@@ -225,7 +242,28 @@ ts = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
 [~, baseName, ext] = fileparts(mFile);
 outputFileName = [baseName '_' ts ext];
 outPath = fullfile(outputDir, outputFileName);
-writetable(tOut, outPath);
+
+% Write CSV with blank cells instead of "NaN"
+fid = fopen(outPath, 'w');
+% Header row
+fprintf(fid, '%s\n', strjoin(tOut.Properties.VariableNames, ','));
+% Data rows
+for r = 1:height(tOut)
+    parts = cell(1, width(tOut));
+    for ci = 1:width(tOut)
+        val = tOut{r, ci};
+        if iscell(val); val = val{1}; end
+        if isstring(val) || ischar(val)
+            parts{ci} = char(val);
+        elseif isnumeric(val) && isnan(val)
+            parts{ci} = '';
+        else
+            parts{ci} = num2str(val, '%.10g');
+        end
+    end
+    fprintf(fid, '%s\n', strjoin(parts, ','));
+end
+fclose(fid);
 
 fprintf('\nAppended %d new rows to meta table (%d total rows).\nSaved to:\n  %s\n', ...
     height(tNew), height(tOut), outPath);
