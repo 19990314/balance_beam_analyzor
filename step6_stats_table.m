@@ -132,21 +132,6 @@ while true
         eval([tbl{1} ' = t;']);
     end
 
-    %% Helper: find source column in a table, return values or NaN column
-    function vals = getCol(tbl, metaColName, prefix)
-        % Try exact name first, then strip prefix
-        if ismember(metaColName, tbl.Properties.VariableNames)
-            vals = tbl.(metaColName);
-        else
-            stripped = metaColName(numel(prefix)+1:end);
-            if ~isempty(stripped) && ismember(stripped, tbl.Properties.VariableNames)
-                vals = tbl.(stripped);
-            else
-                vals = NaN(height(tbl), 1);
-            end
-        end
-    end
-
     %% Per-animal pairing by sequential day index
     mouseIDs = unique(tPost.ID, 'stable');
 
@@ -174,8 +159,17 @@ while true
             for c = 1:numel(baselineMeta)
                 metaCol = baselineMeta{c};   % e.g. "baseline_total_time"
                 if dIdx <= nBase
-                    srcVals = getCol(baseRows, metaCol, 'baseline_');
-                    row.(metaCol) = srcVals(dIdx);
+                    % Try exact name, then strip "baseline_" prefix
+                    if ismember(metaCol, baseRows.Properties.VariableNames)
+                        row.(metaCol) = baseRows.(metaCol)(dIdx);
+                    else
+                        stripped = metaCol(numel('baseline_')+1:end);
+                        if ismember(stripped, baseRows.Properties.VariableNames)
+                            row.(metaCol) = baseRows.(stripped)(dIdx);
+                        else
+                            row.(metaCol) = NaN;
+                        end
+                    end
                 else
                     row.(metaCol) = NaN;
                 end
@@ -184,8 +178,17 @@ while true
             % --- Post-mapped meta columns ---
             for c = 1:numel(postMeta)
                 metaCol = postMeta{c};       % e.g. "postinjection_CrossingTime_sec"
-                srcVals = getCol(postRows, metaCol, 'postinjection_');
-                row.(metaCol) = srcVals(dIdx);
+                % Try exact name, then strip "postinjection_" prefix
+                if ismember(metaCol, postRows.Properties.VariableNames)
+                    row.(metaCol) = postRows.(metaCol)(dIdx);
+                else
+                    stripped = metaCol(numel('postinjection_')+1:end);
+                    if ismember(stripped, postRows.Properties.VariableNames)
+                        row.(metaCol) = postRows.(stripped)(dIdx);
+                    else
+                        row.(metaCol) = NaN;
+                    end
+                end
             end
 
             % ValueToPlot = postinjection_total_time if present
