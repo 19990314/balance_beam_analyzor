@@ -157,34 +157,35 @@ while true
             row.Group = grp;
             row.Day   = row.Days - 1;
 
-            % --- Baseline-mapped meta columns (skip *_total_time; computed after) ---
+            % --- Baseline component columns + total (same structure as post) ---
+            % Derive list of component columns from post CSV, look for them in baseline
             baseSum = 0;
-            for c = 1:numel(baselineMeta)
-                metaCol = baselineMeta{c};
+            for c = 1:numel(postMeta)
+                metaCol = postMeta{c};
                 if endsWith(metaCol, '_total_time'); continue; end
+                % Corresponding baseline col name
+                stripped = metaCol(numel('postinjection_')+1:end);   % e.g. CrossingTime_sec
+                baseCol  = ['baseline_' stripped];                    % e.g. baseline_CrossingTime_sec
                 if dIdx <= nBase
-                    if ismember(metaCol, baseRows.Properties.VariableNames)
-                        v = baseRows.(metaCol)(dIdx);
+                    % try exact name, then stripped name in baseline table
+                    if ismember(stripped, baseRows.Properties.VariableNames)
+                        v = baseRows.(stripped)(dIdx);
+                    elseif ismember(baseCol, baseRows.Properties.VariableNames)
+                        v = baseRows.(baseCol)(dIdx);
                     else
-                        stripped = metaCol(numel('baseline_')+1:end);
-                        if ismember(stripped, baseRows.Properties.VariableNames)
-                            v = baseRows.(stripped)(dIdx);
-                        else
-                            v = NaN;
-                        end
+                        v = NaN;
                     end
                 else
                     v = NaN;
                 end
-                row.(metaCol) = v;
+                row.(baseCol) = v;
                 if ~isnan(v); baseSum = baseSum + v; end
             end
-            if ismember('baseline_total_time', baselineMeta)
-                if dIdx <= nBase
-                    row.baseline_total_time = baseSum;
-                else
-                    row.baseline_total_time = NaN;
-                end
+            % baseline_total_time = sum of the three component values above
+            if dIdx <= nBase
+                row.baseline_total_time = baseSum;
+            else
+                row.baseline_total_time = NaN;
             end
 
             % --- Post-mapped meta columns (skip *_total_time; computed after) ---
@@ -205,14 +206,33 @@ while true
                 row.(metaCol) = v;
                 if ~isnan(v); postSum = postSum + v; end
             end
-            if ismember('postinjection_total_time', postMeta)
-                row.postinjection_total_time = postSum;
+            % postinjection_total_time = sum of the three component values above
+            row.postinjection_total_time = postSum;
+
+            % --- Speed columns (MedianSpeed_cm_s_pauseIncluded/Excluded) ---
+            for pfxPair = {{'baseline_', baseRows, dIdx <= nBase}, ...
+                           {'postinjection_', postRows, true}}
+                pfx    = pfxPair{1}{1};
+                srcTbl = pfxPair{1}{2};
+                hasRow = pfxPair{1}{3};
+                for spd = {'MedianSpeed_cm_s_pauseIncluded', 'MedianSpeed_cm_s_pauseExcluded'}
+                    outCol = [pfx spd{1}];
+                    if hasRow
+                        if ismember(spd{1}, srcTbl.Properties.VariableNames)
+                            row.(outCol) = srcTbl.(spd{1})(dIdx);
+                        elseif ismember([pfx spd{1}], srcTbl.Properties.VariableNames)
+                            row.(outCol) = srcTbl.([pfx spd{1}])(dIdx);
+                        else
+                            row.(outCol) = NaN;
+                        end
+                    else
+                        row.(outCol) = NaN;
+                    end
+                end
             end
 
             % ValueToPlot = postinjection_total_time
-            if isfield(row, 'postinjection_total_time')
-                row.ValueToPlot = row.postinjection_total_time;
-            end
+            row.ValueToPlot = row.postinjection_total_time;
 
             newRows{end+1} = row; %#ok<AGROW>
         end
@@ -234,6 +254,15 @@ for c = 1:numel(metaCols)
     end
 end
 tNew = tNew(:, metaCols);
+
+% Rename Days → Experiment_Day in both tMeta and tNew
+for tbl = {'tMeta', 'tNew'}
+    t = eval(tbl{1});
+    if ismember('Days', t.Properties.VariableNames)
+        t.Properties.VariableNames{'Days'} = 'Experiment_Day';
+    end
+    eval([tbl{1} ' = t;']);
+end
 
 % Append to meta table
 tOut = vertcat(tMeta, tNew);
