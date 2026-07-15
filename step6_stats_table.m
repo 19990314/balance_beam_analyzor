@@ -1,54 +1,94 @@
 %% step6_stats_table.m
-% Builds a paired baseline/post statistics CSV from step3 output files.
+% Appends new cohort data to an existing stats meta file.
 %
-% You will be prompted to select baseline and post CSV files (one pair at
-% a time). Keep selecting pairs; cancel the baseline picker to stop.
+% Workflow:
+%   1. Select the existing meta CSV (e.g. beamwalking_time.csv).
+%      Its column names define the output schema — baseline_* columns are
+%      filled from the baseline session CSV, all other metric columns from
+%      the post session CSV.
+%   2. Select baseline session CSV (e.g. beamwalking_time_and_speed_B2.csv).
+%   3. Select post session CSV     (e.g. beamwalking_time_and_speed_B4.csv).
+%   4. Repeat steps 2-3 for every additional cohort; cancel baseline picker
+%      to stop.
+%   5. New rows are appended to the meta table and saved with a timestamp.
 %
-% Matching rule: animals matched by ID; days paired by sequential index
-% (baseline day 1 ↔ post day 1, baseline day 2 ↔ post day 2, …).
+% Column mapping from source CSVs:
+%   meta column "baseline_X"      → look for column "X" in baseline CSV
+%   meta column "postinjection_X" → look for "postinjection_X" first,
+%                                   then fall back to "X" in post CSV
+%   meta column "X" (other)       → look for "X" in post CSV
+%
 % Rows whose Note column is non-empty have their metrics set to NaN.
-%
-% Output columns:
-%   ID, Group, Day (1-based sequential), ActualExperimentDay,
-%   baseline_<col>  — every numeric column from the baseline CSV
-%   post_<col>      — every numeric column from the post CSV
 
 clear; clc;
 
-%% ==================== SETTINGS ====================
+%% ==================== BOOKKEEPING COLUMNS (never treated as metrics) ====================
+bookkeepCols = {'ID','Days','Group','Day','Note','Video', ...
+                'ValueToPlot','Slips'};
 
-% Columns to skip when extracting metrics (bookkeeping only)
-skipCols = {'ID','Day','Days','Group','Note','Video', ...
-            'Slips','ValueToPlot'};
+%% ==================== SELECT META FILE ====================
 
-outputFileName = 'beamwalking_stats_table.csv';
+[mFile, mDir] = uigetfile('*.csv', 'Select existing meta CSV (e.g. beamwalking_time.csv)');
+if isequal(mFile, 0)
+    error('No meta file selected. Exiting.');
+end
+metaPath = fullfile(mDir, mFile);
+fprintf('Meta file: %s\n', metaPath);
+
+tMeta = readtable(metaPath);
+
+% Normalize ID / Group to string in meta
+for col = {'ID','Group'}
+    if ismember(col{1}, tMeta.Properties.VariableNames)
+        v = tMeta.(col{1});
+        if iscell(v);       tMeta.(col{1}) = string(v);
+        elseif isnumeric(v); tMeta.(col{1}) = string(v); end
+    end
+end
+
+metaCols = tMeta.Properties.VariableNames;
+
+% Separate meta columns into baseline-mapped and post-mapped
+baselineMeta = {};   % meta column names starting with "baseline_"
+postMeta     = {};   % all other non-bookkeeping meta columns
+
+for i = 1:numel(metaCols)
+    col = metaCols{i};
+    if ismember(col, bookkeepCols); continue; end
+    if startsWith(col, 'baseline_')
+        baselineMeta{end+1} = col; %#ok<AGROW>
+    else
+        postMeta{end+1} = col; %#ok<AGROW>
+    end
+end
+
+fprintf('Meta schema:\n');
+fprintf('  Baseline-mapped columns (%d): %s\n', numel(baselineMeta), strjoin(baselineMeta,', '));
+fprintf('  Post-mapped columns    (%d): %s\n', numel(postMeta),     strjoin(postMeta,', '));
 
 %% ==================== SELECT OUTPUT FOLDER ====================
 
-defaultOut = '\\moorelaboratory.dts.usc.edu\Shared\Shuting\P1-SNr\Figures-P1-SNr\Data\Balance Beam';
-outputDir = uigetdir(defaultOut, 'Select output folder for stats CSV');
+outputDir = uigetdir(mDir, 'Select output folder for updated stats CSV');
 if isequal(outputDir, 0)
     error('No output folder selected. Exiting.');
 end
 
-%% ==================== COLLECT FILE PAIRS ====================
+%% ==================== COLLECT & PROCESS COHORT PAIRS ====================
 
-outRows = {};
+newRows   = {};
 cohortNum = 0;
 
 while true
-    % Pick baseline file
+    %% Pick baseline file
     [bFile, bDir] = uigetfile('*.csv', ...
         sprintf('Select BASELINE CSV (cohort %d) — cancel to finish', cohortNum+1));
-    if isequal(bFile, 0)
-        break;   % user cancelled — done collecting
-    end
+    if isequal(bFile, 0); break; end
 
-    % Pick post file
+    %% Pick post file
     [pFile, pDir] = uigetfile('*.csv', ...
         sprintf('Select POST CSV (cohort %d)', cohortNum+1), bDir);
     if isequal(pFile, 0)
-        fprintf('No post file selected for cohort %d — skipping.\n', cohortNum+1);
+        fprintf('No post file for cohort %d — skipping.\n', cohortNum+1);
         continue;
     end
 
@@ -56,64 +96,55 @@ while true
     baselinePath = fullfile(bDir, bFile);
     postPath     = fullfile(pDir, pFile);
 
-    fprintf('\n--- Cohort %d ---\n', cohortNum);
-    fprintf('  Baseline: %s\n', baselinePath);
-    fprintf('  Post:     %s\n', postPath);
+    fprintf('\n--- Cohort %d ---\n  Baseline: %s\n  Post: %s\n', ...
+        cohortNum, baselinePath, postPath);
 
-    %% Load tables
     tBase = readtable(baselinePath);
     tPost = readtable(postPath);
 
-    %% Normalize ID / Group / Note to string in both tables
-    for tbl = {'tBase', 'tPost'}
+    %% Normalize ID / Group / Note to string
+    for tbl = {'tBase','tPost'}
         t = eval(tbl{1});
-        for col = {'ID', 'Group', 'Note'}
+        for col = {'ID','Group','Note'}
             if ismember(col{1}, t.Properties.VariableNames)
                 v = t.(col{1});
-                if iscell(v)
-                    t.(col{1}) = string(v);
-                elseif isnumeric(v)
-                    t.(col{1}) = repmat("", height(t), 1);
+                if iscell(v);        t.(col{1}) = string(v);
+                elseif isnumeric(v); t.(col{1}) = repmat("", height(t), 1); end
+            end
+        end
+        eval([tbl{1} ' = t;']);
+    end
+
+    %% Apply Note masking in each source table
+    for tbl = {'tBase','tPost'}
+        t = eval(tbl{1});
+        if ismember('Note', t.Properties.VariableNames)
+            flagged = strtrim(t.Note) ~= "";
+            if any(flagged)
+                fprintf('  Nulling %d flagged rows in %s\n', sum(flagged), tbl{1});
+                numVars = t.Properties.VariableNames( ...
+                    varfun(@isnumeric, t, 'OutputFormat', 'uniform'));
+                for c = 1:numel(numVars)
+                    t.(numVars{c})(flagged) = NaN;
                 end
             end
         end
         eval([tbl{1} ' = t;']);
     end
 
-    %% Identify numeric metric columns in each file separately
-    baseVars = tBase.Properties.VariableNames;
-    baseVars = baseVars(~ismember(baseVars, skipCols));
-    isNumB   = varfun(@isnumeric, tBase(:, baseVars), 'OutputFormat', 'uniform');
-    baseMetrics = baseVars(isNumB);
-
-    postVars = tPost.Properties.VariableNames;
-    postVars = postVars(~ismember(postVars, skipCols));
-    isNumP   = varfun(@isnumeric, tPost(:, postVars), 'OutputFormat', 'uniform');
-    postMetrics = postVars(isNumP);
-
-    fprintf('  Baseline metrics (%d): %s\n', numel(baseMetrics), strjoin(baseMetrics, ', '));
-    fprintf('  Post metrics     (%d): %s\n', numel(postMetrics), strjoin(postMetrics, ', '));
-
-    %% Apply Note masking (set metric values to NaN for flagged rows)
-    for tbl = {'tBase', 'tPost'}
-        t = eval(tbl{1});
-        if ismember('Note', t.Properties.VariableNames)
-            flagged = strtrim(t.Note) ~= "";
-            if any(flagged)
-                fprintf('  Nulling %d flagged rows in %s\n', sum(flagged), tbl{1});
-                if strcmp(tbl{1}, 'tBase')
-                    mCols = baseMetrics;
-                else
-                    mCols = postMetrics;
-                end
-                for c = 1:numel(mCols)
-                    if ismember(mCols{c}, t.Properties.VariableNames)
-                        t.(mCols{c})(flagged) = NaN;
-                    end
-                end
+    %% Helper: find source column in a table, return values or NaN column
+    function vals = getCol(tbl, metaColName, prefix)
+        % Try exact name first, then strip prefix
+        if ismember(metaColName, tbl.Properties.VariableNames)
+            vals = tbl.(metaColName);
+        else
+            stripped = metaColName(numel(prefix)+1:end);
+            if ~isempty(stripped) && ismember(stripped, tbl.Properties.VariableNames)
+                vals = tbl.(stripped);
+            else
+                vals = NaN(height(tbl), 1);
             end
         end
-        eval([tbl{1} ' = t;']);
     end
 
     %% Per-animal pairing by sequential day index
@@ -129,43 +160,69 @@ while true
         nBase = height(baseRows);
         grp   = postRows.Group(1);
 
+        % Days = total number of post-injection days for this animal
+        totalDays = nPost;
+
         for dIdx = 1:nPost
             row = struct();
-            row.ID                  = mID;
-            row.Group               = grp;
-            row.Day                 = dIdx;
-            row.ActualExperimentDay = postRows.Day(dIdx);
+            row.ID   = mID;
+            row.Days = totalDays;
+            row.Group = grp;
+            row.Day  = dIdx;
 
-            % Baseline columns
-            for c = 1:numel(baseMetrics)
-                col = baseMetrics{c};
+            % --- Baseline-mapped meta columns ---
+            for c = 1:numel(baselineMeta)
+                metaCol = baselineMeta{c};   % e.g. "baseline_total_time"
                 if dIdx <= nBase
-                    row.(['baseline_' col]) = baseRows.(col)(dIdx);
+                    srcVals = getCol(baseRows, metaCol, 'baseline_');
+                    row.(metaCol) = srcVals(dIdx);
                 else
-                    row.(['baseline_' col]) = NaN;
+                    row.(metaCol) = NaN;
                 end
             end
 
-            % Post columns
-            for c = 1:numel(postMetrics)
-                col = postMetrics{c};
-                row.(['post_' col]) = postRows.(col)(dIdx);
+            % --- Post-mapped meta columns ---
+            for c = 1:numel(postMeta)
+                metaCol = postMeta{c};       % e.g. "postinjection_CrossingTime_sec"
+                srcVals = getCol(postRows, metaCol, 'postinjection_');
+                row.(metaCol) = srcVals(dIdx);
             end
 
-            outRows{end+1} = row; %#ok<AGROW>
+            % ValueToPlot = postinjection_total_time if present
+            if ismember('postinjection_total_time', postMeta)
+                row.ValueToPlot = row.postinjection_total_time;
+            end
+
+            newRows{end+1} = row; %#ok<AGROW>
         end
     end
 end
 
-%% ==================== WRITE CSV ====================
+%% ==================== APPEND & SAVE ====================
 
-if isempty(outRows)
-    error('No output rows generated. No cohort pairs were processed.');
+if isempty(newRows)
+    error('No new rows generated. No cohort pairs were processed.');
 end
 
-outTable = struct2table(vertcat(outRows{:}));
-outPath  = fullfile(outputDir, outputFileName);
-writetable(outTable, outPath);
+tNew = struct2table(vertcat(newRows{:}));
 
-fprintf('\nSaved %d rows (%d cohorts) to:\n  %s\n', ...
-    height(outTable), cohortNum, outPath);
+% Reorder tNew columns to match meta schema (add NaN for any missing cols)
+for c = 1:numel(metaCols)
+    if ~ismember(metaCols{c}, tNew.Properties.VariableNames)
+        tNew.(metaCols{c}) = NaN(height(tNew), 1);
+    end
+end
+tNew = tNew(:, metaCols);
+
+% Append to meta table
+tOut = vertcat(tMeta, tNew);
+
+% Save with timestamp
+ts = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+[~, baseName, ext] = fileparts(mFile);
+outputFileName = [baseName '_' ts ext];
+outPath = fullfile(outputDir, outputFileName);
+writetable(tOut, outPath);
+
+fprintf('\nAppended %d new rows to meta table (%d total rows).\nSaved to:\n  %s\n', ...
+    height(tNew), height(tOut), outPath);
